@@ -1,0 +1,8 @@
+backend/MAI.API/bin/
+backend/MAI.API/obj/
+backend/MAI.API/.vs/
+*.user
+*.suo
+.DS_Store
+.env
+*.log
