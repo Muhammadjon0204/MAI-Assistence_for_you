@@ -19,3 +19,4 @@ app/mai_app/linux/
 
 # Конфиги с секретами (добавь шаблоны)
 backend/MAI.API/appsettings.json
+backend/MAI.API/appsettings.Development.json
