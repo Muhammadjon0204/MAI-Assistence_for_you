@@ -57,10 +57,10 @@ namespace MAI.API.Services
             // Варианты моделей для Google AI Studio
             var models = new[] 
             {
-               "gemini-2.0-flash",        // ← ЭТА точно есть!
-               "gemini-2.0-flash-exp",    // ← И эта
-               "gemini-2.0-flash-lite",   // ← И эта
-               "gemini-2.0-pro-exp"
+               "gemini-2.5-flash",        // ← Эта точно есть!
+               "gemini-2.5-pro",          // ← И эта
+               "gemini-2.0-flash",        
+               "gemini-exp-1206"
             };
             
             // Варианты URL для Google AI Studio
