@@ -6,8 +6,7 @@ class ApiService {
   // Измени на свой IP адрес компьютера!
   // Для Windows: ipconfig -> IPv4 Address
   // Для эмулятора Android: 10.0.2.2
-  static const String baseUrl = 'http://10.0.2.2:5284/api';
-
+  static const String baseUrl = 'http://10.43.155.30/api';
   Future<MathSolution> solveProblem(String problem) async {
     try {
       final url = Uri.parse('$baseUrl/Math/solve');
