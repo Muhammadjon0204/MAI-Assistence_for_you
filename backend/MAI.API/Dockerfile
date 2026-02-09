@@ -1,19 +1,12 @@
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
-WORKDIR /app
-EXPOSE 8080
-
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["MAI.API.csproj", "./"]
-RUN dotnet restore "MAI.API.csproj"
 COPY . .
-RUN dotnet build "MAI.API.csproj" -c Release -o /app/build
+RUN dotnet restore
+RUN dotnet publish -c Release -o /app/publish
 
-FROM build AS publish
-RUN dotnet publish "MAI.API.csproj" -c Release -o /app/publish
-
-FROM base AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
-COPY --from=publish /app/publish .
+COPY --from=build /app/publish .
 ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
 ENTRYPOINT ["dotnet", "MAI.API.dll"]
