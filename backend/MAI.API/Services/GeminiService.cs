@@ -16,7 +16,6 @@ namespace MAI.API.Services
             _apiKey = configuration["ApiKeys:Gemini"] ?? throw new Exception("Gemini API key not found");
             _logger = logger;
             
-            // Настройка HttpClient
             _httpClient.Timeout = TimeSpan.FromSeconds(30);
             
             _logger.LogInformation($"Gemini Service initialized");
@@ -35,7 +34,6 @@ namespace MAI.API.Services
             {
                 _logger.LogInformation($"Solving problem: {problem}");
                 
-                // Пробуем разные URL и модели для Google AI Studio
                 var solutions = await TryAllAPIVariants(problem);
                 
                 if (!string.IsNullOrWhiteSpace(solutions))
@@ -54,16 +52,14 @@ namespace MAI.API.Services
         
         private async Task<string> TryAllAPIVariants(string problem)
         {
-            // Варианты моделей для Google AI Studio
             var models = new[] 
             {
-               "gemini-2.5-flash",        // ← Эта точно есть!
-               "gemini-2.5-pro",          // ← И эта
+               "gemini-2.5-flash",       
+               "gemini-2.5-pro",        
                "gemini-2.0-flash",        
                "gemini-exp-1206"
             };
             
-            // Варианты URL для Google AI Studio
             var urlTemplates = new[]
             {
                 "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
@@ -87,7 +83,6 @@ namespace MAI.API.Services
                     catch (Exception ex)
                     {
                         _logger.LogWarning($"Модель {model} не сработала: {ex.Message}");
-                        // Пробуем следующую
                     }
                 }
             }
@@ -151,7 +146,7 @@ namespace MAI.API.Services
                 }
                 catch
                 {
-                    // Не удалось распарсить ошибку
+                    // Если не удалось распарсить ошибку, выбрасываем общее исключение
                 }
                 
                 throw new Exception($"Gemini API вернул ошибку: {response.StatusCode}");
@@ -159,7 +154,7 @@ namespace MAI.API.Services
 
             var result = JsonSerializer.Deserialize<JsonElement>(responseText);
 
-            // Проверяем структуру ответа
+
             if (!result.TryGetProperty("candidates", out var candidates) || 
                 candidates.GetArrayLength() == 0)
             {
@@ -175,7 +170,7 @@ namespace MAI.API.Services
             return solution ?? string.Empty;
         }
         
-        // Метод для проверки доступных моделей
+
         public async Task<List<string>> GetAvailableModels()
         {
             try
@@ -202,7 +197,7 @@ namespace MAI.API.Services
                     var modelName = model.GetProperty("name").GetString();
                     if (modelName != null)
                     {
-                        // Убираем префикс "models/"
+
                         var shortName = modelName.Replace("models/", "");
                         models.Add(shortName);
                         _logger.LogInformation($"Found model: {shortName}");
