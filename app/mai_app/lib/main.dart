@@ -1,22 +1,23 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
+import 'package:mai_app/screens/home_screen.dart';
+import 'package:mai_app/theme/mai_theme.dart';
 
 void main() {
-  runApp(const MAIApp());
+  runApp(const MyApp());
 }
 
-class MAIApp extends StatelessWidget {
-  const MAIApp({Key? key}) : super(key: key);
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MAI - Math AI Assistant',
+      title: 'МАИ Ассистент',
+      theme: ClaudeTheme.darkTheme,
+      darkTheme: ClaudeTheme.darkTheme,
+      themeMode: ThemeMode.dark,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.indigo,
-        useMaterial3: true,
-      ),
       home: const HomeScreen(),
     );
   }
