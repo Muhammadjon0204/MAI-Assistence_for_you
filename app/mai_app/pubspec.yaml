@@ -32,6 +32,9 @@ dependencies:
   
   # Локальное хранилище
   shared_preferences: ^2.2.2
+  
+  # Форматирование даты и времени
+  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:
@@ -40,6 +43,6 @@ dev_dependencies:
   flutter_lints: ^3.0.1
   build_runner: ^2.4.7
   json_serializable: ^6.7.1
-
+  
 flutter:
   uses-material-design: true

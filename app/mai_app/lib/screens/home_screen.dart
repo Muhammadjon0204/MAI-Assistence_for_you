@@ -1,9 +1,10 @@
-// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/history_service.dart';
 import '../models/math_problem.dart';
 import '../widgets/message_bubble.dart';
 import '../theme/mai_theme.dart';
+import 'history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -27,6 +28,7 @@ class ChatMessage {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _problemController = TextEditingController();
   final ApiService _apiService = ApiService();
+  final HistoryService _historyService = HistoryService();
   final List<ChatMessage> _messages = [];
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
@@ -42,6 +44,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const HistoryScreen()),
+            );
+          },
+        ),
         title: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -192,7 +203,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final problem = _problemController.text.trim();
     if (problem.isEmpty) return;
 
-    // Добавляем сообщение пользователя
     setState(() {
       _messages.add(ChatMessage(
         text: problem,
@@ -203,14 +213,14 @@ class _HomeScreenState extends State<HomeScreen> {
       _isLoading = true;
     });
 
-    // Прокрутка вниз
     _scrollToBottom();
 
     try {
-      // Вызов API
       final solution = await _apiService.solveProblem(problem);
 
-      // Добавляем ответ AI
+      // СОХРАНИТЬ В ИСТОРИЮ
+      await _historyService.addToHistory(problem, solution.solution);
+
       setState(() {
         _messages.add(ChatMessage(
           text: solution.solution,
@@ -220,7 +230,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      // Обработка ошибки
       setState(() {
         _messages.add(ChatMessage(
           text: 'Ошибка: $e',
@@ -231,17 +240,18 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
 
-    // Прокрутка вниз
     _scrollToBottom();
   }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
     });
   }
 
