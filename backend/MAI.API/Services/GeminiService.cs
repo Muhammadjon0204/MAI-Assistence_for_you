@@ -28,17 +28,18 @@ namespace MAI.API.Services
             }
         }
 
-        public async Task<string> SolveMathProblem(string problem)
+        // ГЛАВНЫЙ МЕТОД - теперь отвечает на ВСЁ!
+        public async Task<string> SolveMathProblem(string question)
         {
             try
             {
-                _logger.LogInformation($"Solving problem: {problem}");
+                _logger.LogInformation($"Processing question: {question}");
                 
-                var solutions = await TryAllAPIVariants(problem);
+                var answer = await TryAllAPIVariants(question);
                 
-                if (!string.IsNullOrWhiteSpace(solutions))
+                if (!string.IsNullOrWhiteSpace(answer))
                 {
-                    return solutions;
+                    return answer;
                 }
                 
                 throw new Exception("Все варианты API не сработали. Проверь API ключ в Google AI Studio.");
@@ -46,11 +47,11 @@ namespace MAI.API.Services
             catch (Exception ex)
             {
                 _logger.LogError($"Error in SolveMathProblem: {ex.Message}");
-                throw new Exception($"Ошибка при решении задачи: {ex.Message}");
+                throw new Exception($"Ошибка при получении ответа: {ex.Message}");
             }
         }
         
-        private async Task<string> TryAllAPIVariants(string problem)
+        private async Task<string> TryAllAPIVariants(string question)
         {
             var models = new[] 
             {
@@ -73,11 +74,11 @@ namespace MAI.API.Services
                     try
                     {
                         _logger.LogInformation($"Пробуем: {model} с шаблоном {urlTemplate}");
-                        var solution = await CallGeminiAPI(problem, model, urlTemplate);
-                        if (!string.IsNullOrWhiteSpace(solution))
+                        var answer = await CallGeminiAPI(question, model, urlTemplate);
+                        if (!string.IsNullOrWhiteSpace(answer))
                         {
                             _logger.LogInformation($"Успех с моделью: {model}");
-                            return solution;
+                            return answer;
                         }
                     }
                     catch (Exception ex)
@@ -90,13 +91,31 @@ namespace MAI.API.Services
             return string.Empty;
         }
         
-        private async Task<string> CallGeminiAPI(string problem, string model, string urlTemplate)
+        private async Task<string> CallGeminiAPI(string question, string model, string urlTemplate)
         {
             var url = urlTemplate
                 .Replace("{model}", model)
                 .Replace("{key}", _apiKey);
             
             _logger.LogInformation($"Calling Gemini API: {url.Substring(0, Math.Min(80, url.Length))}...");
+
+            // УЛУЧШЕННЫЙ ПРОМПТ - отвечает на всё!
+            var systemPrompt = @"Ты — МАИ (Math AI Assistant), умный AI-помощник созданный для помощи студентам.
+
+Твои возможности:
+1. Решать математические задачи любой сложности (алгебра, геометрия, тригонометрия, математический анализ, линейная алгебра)
+2. Решать задачи по физике, химии, информатике
+3. Объяснять сложные концепции простым языком
+4. Отвечать на общие вопросы
+5. Помогать с учёбой и домашними заданиями
+6. Вести дружескую беседу
+
+ВАЖНО:
+- Если это математическая/физическая задача — покажи ПОШАГОВОЕ решение с объяснениями
+- Если это обычный вопрос — дай полезный и понятный ответ
+- Пиши на русском языке
+- Будь дружелюбным и полезным
+- Форматируй ответ для удобного чтения (используй абзацы, списки где нужно)";
 
             var requestBody = new
             {
@@ -108,15 +127,17 @@ namespace MAI.API.Services
                         {
                             new
                             {
-                                text = $"Реши математическую задачу пошагово и дай финальный ответ: {problem}\n\nПокажи все шаги решения."
+                                text = $"{systemPrompt}\n\nВопрос пользователя: {question}"
                             }
                         }
                     }
                 },
                 generationConfig = new
                 {
-                    temperature = 0.1,
-                    maxOutputTokens = 1000
+                    temperature = 0.7,  // Баланс между точностью и креативностью
+                    maxOutputTokens = 2000,  // Больше токенов для развёрнутых ответов
+                    topP = 0.95,
+                    topK = 40
                 }
             };
 
@@ -154,23 +175,21 @@ namespace MAI.API.Services
 
             var result = JsonSerializer.Deserialize<JsonElement>(responseText);
 
-
             if (!result.TryGetProperty("candidates", out var candidates) || 
                 candidates.GetArrayLength() == 0)
             {
                 throw new Exception("Неверный формат ответа от API");
             }
 
-            var solution = candidates[0]
+            var answer = candidates[0]
                 .GetProperty("content")
                 .GetProperty("parts")[0]
                 .GetProperty("text")
                 .GetString();
 
-            return solution ?? string.Empty;
+            return answer ?? string.Empty;
         }
         
-
         public async Task<List<string>> GetAvailableModels()
         {
             try
@@ -197,7 +216,6 @@ namespace MAI.API.Services
                     var modelName = model.GetProperty("name").GetString();
                     if (modelName != null)
                     {
-
                         var shortName = modelName.Replace("models/", "");
                         models.Add(shortName);
                         _logger.LogInformation($"Found model: {shortName}");
