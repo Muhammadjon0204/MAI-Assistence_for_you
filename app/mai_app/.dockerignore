@@ -1,0 +1,19 @@
+# Ignore build artifacts
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+
+# Ignore version control
+.git
+.gitignore
+
+# Ignore IDE settings
+.idea
+.vscode
+*.iml
+
+# Ignore OS files
+.DS_Store
