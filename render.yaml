@@ -1,0 +1,36 @@
+services:
+  # Backend Service (.NET 9)
+  - type: web
+    name: mai-backend
+    runtime: docker
+    rootDir: backend/MAI.API
+    plan: free
+    region: frankfurt # Or your preferred region
+    numInstances: 1
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__DefaultConnection
+        fromDatabase:
+          name: mai-db
+          property: connectionString
+
+  # Frontend Service (Flutter + Nginx)
+  - type: web
+    name: mai-frontend
+    runtime: docker
+    rootDir: app/mai_app
+    plan: free
+    region: frankfurt
+    numInstances: 1
+    envVars:
+      - key: PORT
+        value: 80
+
+databases:
+  - name: mai-db
+    plan: free
+    region: frankfurt
+    databaseName: mai_db
+    user: postgres

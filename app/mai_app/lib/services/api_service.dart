@@ -3,10 +3,9 @@ import 'package:http/http.dart' as http;
 import '../models/math_problem.dart';
 
 class ApiService {
-  // Измени на свой IP адрес компьютера!
-  // Для Windows: ipconfig -> IPv4 Address
-  // Для эмулятора Android: 10.0.2.2
-  static const String baseUrl = 'http://localhost:5284/api';
+  // Используем относительный путь, чтобы Nginx проксировал запросы
+  // Это работает и локально (если настроен прокси), и в Docker
+  static const String baseUrl = '/api';
   Future<MathSolution> solveProblem(String problem) async {
     try {
       final url = Uri.parse('$baseUrl/Math/solve');
