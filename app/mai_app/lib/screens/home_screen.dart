@@ -59,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Icon(Icons.auto_awesome, color: ClaudeColors.accentPurple),
             SizedBox(width: 8),
             Text(
-              'МАИ Ассистент',
+              'MAI Assistent',
               style: TextStyle(
                 color: ClaudeColors.textPrimary,
                 fontWeight: FontWeight.w600,
@@ -117,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(width: 12),
           const Text(
-            'МАИ думает...',
+            'MAI thinking...',
             style: TextStyle(color: ClaudeColors.textSecondary),
           ),
           const SizedBox(width: 8),
@@ -165,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       controller: _problemController,
                       style: const TextStyle(color: ClaudeColors.textPrimary),
                       decoration: const InputDecoration(
-                        hintText: 'Задайте математическую задачу...',
+                        hintText: 'Задайте свой вопрос...',
                         hintStyle: TextStyle(color: ClaudeColors.textHint),
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.symmetric(vertical: 12),
@@ -269,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Версия 1.0\nМАИ Математический Ассистент',
+                'Версия 1.0\nMAI ИИ Ассистент',
                 style: TextStyle(color: ClaudeColors.textSecondary),
               ),
             ],
