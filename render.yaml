@@ -33,4 +33,4 @@ databases:
     plan: free
     region: frankfurt
     databaseName: mai_db
-    user: postgres
+    user: mai_user
