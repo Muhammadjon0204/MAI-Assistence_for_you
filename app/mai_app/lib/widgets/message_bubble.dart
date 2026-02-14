@@ -57,7 +57,7 @@ class MessageBubble extends StatelessWidget {
                   ),
                   child: SelectableText(
                     message,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: ClaudeColors.textPrimary,
                       fontSize: 15,
                       height: 1.5,

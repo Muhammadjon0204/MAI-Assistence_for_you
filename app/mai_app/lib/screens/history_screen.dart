@@ -1,10 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/history_service.dart';
-import 'package:intl/intl.dart';
+
+String formatDateRussian(DateTime dateTime) {
+  final months = [
+    'янв',
+    'фев',
+    'мар',
+    'апр',
+    'май',
+    'июн',
+    'июл',
+    'авг',
+    'сен',
+    'окт',
+    'ноя',
+    'дек'
+  ];
+  final day = dateTime.day.toString().padLeft(2, '0');
+  final month = months[dateTime.month - 1];
+  final hour = dateTime.hour.toString().padLeft(2, '0');
+  final minute = dateTime.minute.toString().padLeft(2, '0');
+  return '$day $month, $hour:$minute';
+}
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({Key? key}) : super(key: key);
+  const HistoryScreen({super.key});
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -94,7 +115,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     borderRadius: BorderRadius.circular(30),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF667eea).withOpacity(0.5),
+                        color: const Color(0xFF667eea).withValues(alpha: 0.5),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -135,11 +156,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
           colors: [Color(0xFF667eea), Color(0xFF764ba2)],
         ),
-        borderRadius: const BorderRadius.only(
+        borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
         ),
@@ -151,7 +172,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               Container(
                 width: 60,
                 height: 60,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
                 ),
@@ -244,8 +265,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildHistoryCard(HistoryItem item) {
-    final dateFormat = DateFormat('dd MMM, HH:mm', 'ru_RU');
-
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -278,7 +297,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  dateFormat.format(item.timestamp),
+                  formatDateRussian(item.timestamp),
                   style: GoogleFonts.roboto(
                     fontSize: 12,
                     color: Colors.grey[600],

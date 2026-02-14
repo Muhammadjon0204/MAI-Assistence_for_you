@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -17,7 +18,7 @@ class OcrService {
       if (photo == null) return null;
       return File(photo.path);
     } catch (e) {
-      print('Error taking photo: $e');
+      debugPrint('Error taking photo: $e');
       return null;
     }
   }
@@ -33,7 +34,7 @@ class OcrService {
       if (image == null) return null;
       return File(image.path);
     } catch (e) {
-      print('Error picking image: $e');
+      debugPrint('Error picking image: $e');
       return null;
     }
   }
@@ -50,7 +51,7 @@ class OcrService {
 
       return text.trim();
     } catch (e) {
-      print('Error recognizing text: $e');
+      debugPrint('Error recognizing text: $e');
       throw Exception('Не удалось распознать текст: $e');
     }
   }

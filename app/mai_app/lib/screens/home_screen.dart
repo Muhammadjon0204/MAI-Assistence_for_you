@@ -4,13 +4,12 @@ import '../services/api_service.dart';
 import '../services/history_service.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/ocr_service.dart';
-import '../models/math_problem.dart';
 import '../widgets/message_bubble.dart';
 import '../theme/mai_theme.dart';
 import 'history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -36,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<ChatMessage> _messages = [];
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
+  String napiKey = 'http://localhost:5284';
   File? _selectedImage;
   String? _recognizedText;
   @override
@@ -126,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
             style: TextStyle(color: ClaudeColors.textSecondary),
           ),
           const SizedBox(width: 8),
-          SizedBox(
+          const SizedBox(
             width: 24,
             height: 24,
             child: CircularProgressIndicator(
@@ -142,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildInputField() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: ClaudeColors.secondaryDark,
         border: Border(
           top: BorderSide(color: ClaudeColors.borderColor, width: 0.5),
@@ -170,7 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: InputDecoration(
                 hintText: 'Задайте свой вопрос...',
                 hintStyle: TextStyle(
-                  color: ClaudeColors.textHint.withOpacity(0.5),
+                  color: ClaudeColors.textHint.withValues(alpha: 0.5),
                   fontSize: 15,
                 ),
                 border: InputBorder.none,
@@ -206,7 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   size: 20,
                 ),
               ),
-              onPressed: _isLoading ? null : _solveProblem,
+              onPressed: _isLoading ? null : () => _solveProblem(napiKey),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
@@ -216,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _solveProblem() async {
+  Future<void> _solveProblem(String apiKey) async {
     final problem = _problemController.text.trim();
     if (problem.isEmpty) return;
 
@@ -233,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _scrollToBottom();
 
     try {
-      final solution = await _apiService.solveProblem(problem);
+      final solution = await _apiService.solveProblem(problem, apiKey);
 
       // СОХРАНИТЬ В ИСТОРИЮ
       await _historyService.addToHistory(problem, solution.solution);
@@ -341,11 +341,11 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: ClaudeColors.secondaryDark,
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.edit, color: ClaudeColors.accentBlue),
-            const SizedBox(width: 8),
-            const Text(
+            Icon(Icons.edit, color: ClaudeColors.accentBlue),
+            SizedBox(width: 8),
+            Text(
               'Проверьте текст',
               style: TextStyle(color: ClaudeColors.textPrimary),
             ),
@@ -402,10 +402,10 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: ClaudeColors.accentBlue.withOpacity(0.1),
+                  color: ClaudeColors.accentBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: ClaudeColors.accentBlue.withOpacity(0.3),
+                    color: ClaudeColors.accentBlue.withValues(alpha: 0.3),
                   ),
                 ),
                 child: const Row(
@@ -440,7 +440,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (editedText.isNotEmpty) {
                 Navigator.pop(context);
                 _problemController.text = editedText;
-                _solveProblem();
+                _solveProblem(napiKey);
               }
             },
             style: ElevatedButton.styleFrom(
@@ -482,12 +482,62 @@ class _HomeScreenState extends State<HomeScreen> {
             'Настройки',
             style: TextStyle(color: ClaudeColors.textPrimary),
           ),
-          content: const Column(
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
+              const Text(
                 'Версия 1.0\nMAI ИИ Ассистент',
                 style: TextStyle(color: ClaudeColors.textSecondary),
+              ),
+              IconButton(
+                  onPressed: _showInputKeyDialog, icon: const Icon(Icons.key))
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Закрыть',
+                  style: TextStyle(color: ClaudeColors.accentBlue)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showInputKeyDialog() {
+    final TextEditingController apiKeyController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: ClaudeColors.secondaryDark,
+          title: const Text(
+            'Введите API ключ',
+            style: TextStyle(color: ClaudeColors.textPrimary),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Здесь вы можете ввести свой API ключ для доступа к сервису решения задач. Это позволит вам использовать приложение с вашим аккаунтом и сохранять историю решений.',
+                style: TextStyle(color: ClaudeColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: apiKeyController,
+                style: const TextStyle(color: ClaudeColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: (napiKey != '') ? napiKey : 'Введите ваш API ключ',
+                  hintStyle: const TextStyle(color: ClaudeColors.textHint),
+                  filled: true,
+                  fillColor: ClaudeColors.cardDark,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
               ),
             ],
           ),
@@ -496,6 +546,25 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () => Navigator.pop(context),
               child: const Text('Закрыть',
                   style: TextStyle(color: ClaudeColors.accentBlue)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final apiKey = apiKeyController.text.trim();
+                if (apiKey.isNotEmpty) {
+                  setState(
+                    () {
+                      napiKey =
+                          apiKey; // Здесь вы можете сохранить ключ в состоянии или использовать его для настройки ApiService
+                    },
+                  );
+                  // Save or use the API key here
+                  Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ClaudeColors.accentBlue,
+              ),
+              child: const Text('Сохранить'),
             ),
           ],
         );

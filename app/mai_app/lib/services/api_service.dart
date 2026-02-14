@@ -5,8 +5,9 @@ import '../models/math_problem.dart';
 class ApiService {
   // Используем относительный путь, чтобы Nginx проксировал запросы
   // Это работает и локально (если настроен прокси), и в Docker
-  static const String baseUrl = '/api';
-  Future<MathSolution> solveProblem(String problem) async {
+  static String baseUrl = 'https://5j5b8886-5284.euw.devtunnels.ms/api';
+  Future<MathSolution> solveProblem(String problem, String apiKey) async {
+    baseUrl = '$apiKey/api'; // Обновляем базовый URL на введенный пользователем
     try {
       final url = Uri.parse('$baseUrl/Math/solve');
 
