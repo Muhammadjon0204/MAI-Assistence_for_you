@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import '../services/api_service.dart';
 import '../services/history_service.dart';
+import 'package:image_picker/image_picker.dart';
+import '../services/ocr_service.dart';
 import '../models/math_problem.dart';
 import '../widgets/message_bubble.dart';
 import '../theme/mai_theme.dart';
@@ -29,10 +32,12 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _problemController = TextEditingController();
   final ApiService _apiService = ApiService();
   final HistoryService _historyService = HistoryService();
+  final OcrService _ocrService = OcrService();
   final List<ChatMessage> _messages = [];
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
-
+  File? _selectedImage;
+  String? _recognizedText;
   @override
   void dispose() {
     _problemController.dispose();
@@ -136,7 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildInputField() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: ClaudeColors.secondaryDark,
         border: Border(
@@ -144,54 +149,66 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          // Кнопка скрепки
+          // Кнопка скрепки - ДОБАВЛЯЕМ ДЕЙСТВИЕ!
           IconButton(
             icon: const Icon(Icons.attach_file,
                 color: ClaudeColors.textSecondary),
-            onPressed: () {},
+            onPressed: _handleImagePick, // ← ИЗМЕНИЛИ!
+            padding: const EdgeInsets.all(8),
           ),
+          const SizedBox(width: 8),
+
+          // Поле ввода
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: ClaudeColors.cardDark,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: ClaudeColors.borderColor, width: 0.5),
+            child: TextField(
+              controller: _problemController,
+              style: const TextStyle(
+                  color: ClaudeColors.textPrimary, fontSize: 15),
+              decoration: InputDecoration(
+                hintText: 'Задайте свой вопрос...',
+                hintStyle: TextStyle(
+                  color: ClaudeColors.textHint.withOpacity(0.5),
+                  fontSize: 15,
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextField(
-                      controller: _problemController,
-                      style: const TextStyle(color: ClaudeColors.textPrimary),
-                      decoration: const InputDecoration(
-                        hintText: 'Задайте свой вопрос...',
-                        hintStyle: TextStyle(color: ClaudeColors.textHint),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      maxLines: 4,
-                      minLines: 1,
-                    ),
+              maxLines: 5,
+              minLines: 1,
+              textInputAction: TextInputAction.newline,
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Кнопка отправки
+          Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            child: IconButton(
+              icon: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFF667eea),
+                      Color(0xFF764ba2),
+                    ],
                   ),
-                  IconButton(
-                    icon: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: ClaudeColors.accentBlue,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Icon(
-                        Icons.send,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                    onPressed: _isLoading ? null : _solveProblem,
-                  ),
-                  const SizedBox(width: 8),
-                ],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.arrow_upward,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
+              onPressed: _isLoading ? null : _solveProblem,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
             ),
           ),
         ],
@@ -241,6 +258,206 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     _scrollToBottom();
+  }
+
+  Future<void> _handleImagePick() async {
+    // Показываем диалог: Камера или Галерея?
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: ClaudeColors.secondaryDark,
+        title: const Text(
+          'Выберите источник',
+          style: TextStyle(color: ClaudeColors.textPrimary),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading:
+                  const Icon(Icons.camera_alt, color: ClaudeColors.accentBlue),
+              title: const Text('Камера',
+                  style: TextStyle(color: ClaudeColors.textPrimary)),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library,
+                  color: ClaudeColors.accentPurple),
+              title: const Text('Галерея',
+                  style: TextStyle(color: ClaudeColors.textPrimary)),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Получаем фото
+      final File? imageFile = source == ImageSource.camera
+          ? await _ocrService.takePhoto()
+          : await _ocrService.pickImage();
+
+      if (imageFile == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Распознаём текст
+      final recognizedText = await _ocrService.recognizeText(imageFile);
+
+      setState(() {
+        _selectedImage = imageFile;
+        _recognizedText = recognizedText;
+        _isLoading = false;
+      });
+
+      // Показываем редактируемую карточку
+      _showEditableTextDialog(recognizedText, imageFile);
+    } catch (e) {
+      setState(() => _isLoading = false);
+
+      // Показываем ошибку
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showEditableTextDialog(String initialText, File imageFile) {
+    final TextEditingController editController =
+        TextEditingController(text: initialText);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: ClaudeColors.secondaryDark,
+        title: Row(
+          children: [
+            const Icon(Icons.edit, color: ClaudeColors.accentBlue),
+            const SizedBox(width: 8),
+            const Text(
+              'Проверьте текст',
+              style: TextStyle(color: ClaudeColors.textPrimary),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Превью фото
+              Container(
+                height: 200,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  image: DecorationImage(
+                    image: FileImage(imageFile),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Заголовок
+              const Text(
+                '📝 Распознанный текст:',
+                style: TextStyle(
+                  color: ClaudeColors.accentBlue,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Редактируемое поле
+              TextField(
+                controller: editController,
+                maxLines: 5,
+                style: const TextStyle(color: ClaudeColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Исправьте если нужно...',
+                  hintStyle: const TextStyle(color: ClaudeColors.textHint),
+                  filled: true,
+                  fillColor: ClaudeColors.cardDark,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Подсказка
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: ClaudeColors.accentBlue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: ClaudeColors.accentBlue.withOpacity(0.3),
+                  ),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline,
+                        color: ClaudeColors.accentBlue, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Проверьте и исправьте текст если OCR ошибся',
+                        style: TextStyle(
+                          color: ClaudeColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена',
+                style: TextStyle(color: ClaudeColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final editedText = editController.text.trim();
+              if (editedText.isNotEmpty) {
+                Navigator.pop(context);
+                _problemController.text = editedText;
+                _solveProblem();
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ClaudeColors.accentBlue,
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check, size: 18),
+                SizedBox(width: 4),
+                Text('Решить'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _scrollToBottom() {
