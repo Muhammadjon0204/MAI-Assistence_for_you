@@ -1,7 +1,14 @@
+// ignore_for_file: unused_element
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:mai_app/screens/auth_screen.dart';
 import 'package:mai_app/services/auth_service.dart';
 import 'package:mai_app/services/history_service.dart';
+import 'package:mai_app/theme/mai_theme.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 String formatDateRussian(DateTime dateTime) {
   final months = [
@@ -81,6 +88,234 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (confirmed == true) {
       await _historyService.clearHistory();
       _loadData();
+    }
+  }
+
+  // Диалог удаления одного запроса
+  Future<void> _showDeleteDialog(HistoryItem item) async {
+    // Вибрация при долгом нажатии (опционально)
+    // HapticFeedback.mediumImpact();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: ClaudeColors.secondaryDark,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.delete_outline, color: Colors.red, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Удалить запрос?',
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: ClaudeColors.cardDark,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                item.problem,
+                style: GoogleFonts.roboto(
+                  color: Colors.white70,
+                  fontSize: 14,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Это действие нельзя отменить',
+              style: GoogleFonts.roboto(
+                color: Colors.red[300],
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Отмена',
+              style: GoogleFonts.poppins(
+                color: Colors.white70,
+                fontSize: 16,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                'Удалить',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteHistoryItem(item);
+    }
+  }
+
+// Удаление одного запроса из истории
+  Future<void> _deleteHistoryItem(HistoryItem item) async {
+    setState(() {
+      _history.removeWhere(
+          (h) => h.problem == item.problem && h.timestamp == item.timestamp);
+    });
+
+    // Сохраняем обновлённую историю
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = _history.map((item) => item.toJson()).toList();
+    await prefs.setString('mai_history', jsonEncode(jsonList));
+
+    // Показываем уведомление
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Запрос удалён'),
+            ],
+          ),
+          backgroundColor: Colors.green[700],
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+  }
+
+// Диалог подтверждения выхода
+  Future<void> _showLogoutDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: ClaudeColors.secondaryDark,
+        title: const Row(
+          children: [
+            Icon(Icons.logout, color: Colors.red),
+            SizedBox(width: 12),
+            Text(
+              'Выйти из аккаунта?',
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Вы сможете войти снова с вашим email и паролем',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Выйти'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _logout();
+    }
+  }
+
+// Выход из аккаунта
+  Future<void> _logout() async {
+    final authService = AuthService();
+    await authService.logout();
+
+    if (mounted) {
+      // Переходим на экран авторизации
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const AuthScreen()),
+        (route) => false,
+      );
+    }
+  }
+
+// Смена аккаунта (выход + вход в другой)
+  Future<void> _switchAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: ClaudeColors.secondaryDark,
+        title: const Row(
+          children: [
+            Icon(Icons.swap_horiz, color: ClaudeColors.accentBlue),
+            SizedBox(width: 12),
+            Text(
+              'Сменить аккаунт?',
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Текущий аккаунт будет сохранён. Вы сможете войти обратно.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ClaudeColors.accentBlue,
+            ),
+            child: const Text('Сменить'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _logout();
     }
   }
 
@@ -174,6 +409,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         children: [
           Row(
             children: [
+              // Аватар
               Container(
                 width: 60,
                 height: 60,
@@ -193,6 +429,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
               const SizedBox(width: 16),
+
+              // Имя и статистика
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,11 +453,50 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ],
                 ),
               ),
-              if (_history.isNotEmpty)
-                IconButton(
-                  onPressed: _clearHistory,
-                  icon: const Icon(Icons.delete_outline, color: Colors.white),
+
+              // Меню (три точки)
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.white),
+                color: ClaudeColors.secondaryDark,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                onSelected: (value) {
+                  if (value == 'logout') {
+                    _showLogoutDialog();
+                  } else if (value == 'switch') {
+                    _switchAccount();
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'switch',
+                    child: Row(
+                      children: [
+                        Icon(Icons.swap_horiz, color: ClaudeColors.accentBlue),
+                        SizedBox(width: 12),
+                        Text(
+                          'Сменить аккаунт',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout, color: Colors.red),
+                        SizedBox(width: 12),
+                        Text(
+                          'Выйти',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ],
@@ -270,6 +547,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildHistoryCard(HistoryItem item) {
+    final dateFormat = DateFormat('dd MMM, HH:mm', 'ru_RU');
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -285,6 +564,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () => _showSolutionDialog(item),
+          onLongPress: () =>
+              _showDeleteDialog(item), // ← ДОБАВИЛИ ДОЛГОЕ НАЖАТИЕ!
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -302,7 +583,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  formatDateRussian(item.timestamp),
+                  dateFormat.format(item.timestamp),
                   style: GoogleFonts.roboto(
                     fontSize: 12,
                     color: Colors.grey[600],
