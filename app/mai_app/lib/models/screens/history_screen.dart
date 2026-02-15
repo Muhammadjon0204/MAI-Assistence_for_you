@@ -548,7 +548,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildHistoryCard(HistoryItem item) {
-    final dateFormat = DateFormat('dd MMM, HH:mm', 'ru_RU');
+    // Простое форматирование даты без intl локали
+    final date = item.timestamp;
+    final timeStr =
+        '${date.day} ${_getMonthName(date.month)}, ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -565,8 +568,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () => _showSolutionDialog(item),
-          onLongPress: () =>
-              _showDeleteDialog(item), // ← ДОБАВИЛИ ДОЛГОЕ НАЖАТИЕ!
+          onLongPress: () => _showDeleteDialog(item),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -584,7 +586,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  dateFormat.format(item.timestamp),
+                  timeStr,
                   style: GoogleFonts.roboto(
                     fontSize: 12,
                     color: Colors.grey[600],
@@ -596,6 +598,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
       ),
     );
+  }
+
+// Вспомогательный метод для названий месяцев
+  String _getMonthName(int month) {
+    const months = [
+      'янв',
+      'фев',
+      'мар',
+      'апр',
+      'май',
+      'июн',
+      'июл',
+      'авг',
+      'сен',
+      'окт',
+      'ноя',
+      'дек'
+    ];
+    return months[month - 1];
   }
 
   void _showSolutionDialog(HistoryItem item) {
