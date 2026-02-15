@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/history_service.dart';
+import 'package:mai_app/services/auth_service.dart';
+import 'package:mai_app/services/history_service.dart';
 
 String formatDateRussian(DateTime dateTime) {
   final months = [
@@ -45,7 +46,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _loadData() async {
     final history = await _historyService.getHistory();
-    final username = await _historyService.getUsername();
+
+    // Получаем текущего пользователя
+    final authService = AuthService();
+    final user = await authService.getCurrentUser();
+    final username = user?.nickname ?? 'Гость';
 
     setState(() {
       _history = history;
