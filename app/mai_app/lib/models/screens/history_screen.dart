@@ -1,6 +1,7 @@
 // ignore_for_file: unused_element
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:mai_app/screens/auth_screen.dart';
@@ -94,7 +95,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   // Диалог удаления одного запроса
   Future<void> _showDeleteDialog(HistoryItem item) async {
     // Вибрация при долгом нажатии (опционально)
-    // HapticFeedback.mediumImpact();
+    HapticFeedback.mediumImpact();
 
     final confirmed = await showDialog<bool>(
       context: context,
