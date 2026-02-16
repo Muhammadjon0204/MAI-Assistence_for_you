@@ -1,7 +1,9 @@
-// ignore_for_file: unused_field
+// ignore_for_file: unused_field, unused_import
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+// ignore: duplicate_ignore
+// ignore: unused_import
 import 'package:mai_app/models/screens/auth_screen.dart';
 import 'package:mai_app/models/screens/subscription_screen.dart';
 import 'package:mai_app/services/api_service.dart';
