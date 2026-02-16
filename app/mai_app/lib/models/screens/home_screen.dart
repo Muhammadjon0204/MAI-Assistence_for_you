@@ -13,6 +13,7 @@ import 'package:mai_app/theme/mai_theme.dart';
 import 'package:mai_app/widgets/message_bubble.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -53,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadSubscription();
+    _loadApiUrl();
   }
 
   // Метод загрузки подписки
@@ -61,6 +63,17 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _currentTier = subscription.tier;
     });
+  }
+
+  // Метод загрузки API URL
+  Future<void> _loadApiUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedUrl = prefs.getString('api_base_url');
+    if (savedUrl != null) {
+      setState(() {
+        napiKey = savedUrl;
+      });
+    }
   }
 
   @override
@@ -681,7 +694,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const Divider(color: Colors.white24),
 
-              // СЕКРЕТНАЯ КНОПКА - ДОЛГОЕ НАЖАТИЕ НА ВЕРСИИ! ← ДОБАВЬ
+              // КНОПКА API URL (КЛЮЧИК) ← ДОБАВЬ ЭТО!
+              ListTile(
+                leading:
+                    const Icon(Icons.vpn_key, color: ClaudeColors.accentBlue),
+                title: const Text('API URL',
+                    style: TextStyle(color: Colors.white)),
+                subtitle: Text(
+                  napiKey,
+                  style: const TextStyle(color: Colors.white54, fontSize: 11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing:
+                    const Icon(Icons.edit, color: Colors.white54, size: 16),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showApiUrlDialog();
+                },
+              ),
+
+              const Divider(color: Colors.white24),
+
+              // СЕКРЕТНАЯ КНОПКА - Долгое нажатие на Версию
               GestureDetector(
                 onLongPress: () {
                   Navigator.pop(context);
@@ -703,27 +738,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
 
               const Divider(color: Colors.white24),
-
-              // Выход
-              ListTile(
-                leading: const Icon(Icons.logout, color: Colors.red),
-                title: const Text('Выйти из аккаунта',
-                    style: TextStyle(color: Colors.white)),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final authService = AuthService();
-                  await authService.logout();
-                  if (mounted) {
-                    Navigator.pushAndRemoveUntil(
-                      // ignore: use_build_context_synchronously
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const AuthScreen()),
-                      (route) => false,
-                    );
-                  }
-                },
-              ),
             ],
           ),
           actions: [
@@ -734,6 +748,200 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         );
+      },
+    );
+  }
+
+// Диалог изменения API URL
+  Future<void> _showApiUrlDialog() async {
+    final TextEditingController urlController =
+        TextEditingController(text: napiKey);
+
+    final newUrl = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: ClaudeColors.secondaryDark,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.vpn_key, color: ClaudeColors.accentBlue),
+            const SizedBox(width: 12),
+            Text(
+              'API Server URL',
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Введите URL сервера:',
+              style: GoogleFonts.roboto(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: urlController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'https://abc123-5284.app.github.dev',
+                hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+                filled: true,
+                fillColor: ClaudeColors.cardDark,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                prefixIcon:
+                    const Icon(Icons.link, color: ClaudeColors.accentBlue),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                // ignore: deprecated_member_use
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                // ignore: deprecated_member_use
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline,
+                          color: Colors.blue, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'VS Code Port Forwarding:',
+                        style: GoogleFonts.poppins(
+                          color: Colors.blue,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '1. Terminal → PORTS\n2. Forward port: 5284\n3. Скопируй адрес\n4. Вставь сюда',
+                    style: GoogleFonts.roboto(
+                      color: Colors.blue[200],
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Быстрые кнопки
+            Wrap(
+              spacing: 8,
+              children: [
+                _buildQuickUrlButton(
+                  'Localhost',
+                  'http://localhost:5284',
+                  urlController,
+                ),
+                _buildQuickUrlButton(
+                  'Reset',
+                  'http://localhost:5284',
+                  urlController,
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: Text(
+              'Отмена',
+              style: GoogleFonts.poppins(color: Colors.white70),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final url = urlController.text.trim();
+              if (url.isNotEmpty) {
+                Navigator.pop(context, url);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ClaudeColors.accentBlue,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                'Сохранить',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (newUrl != null && newUrl != napiKey) {
+      setState(() {
+        napiKey = newUrl;
+      });
+
+      // Сохраняем в SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('api_base_url', newUrl);
+
+      // Обновляем в ApiService
+      ApiService.updateBaseUrl(newUrl);
+
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(child: Text('API URL обновлён: $newUrl')),
+            ],
+          ),
+          backgroundColor: Colors.green[700],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+  }
+
+// Кнопка быстрого выбора URL
+  Widget _buildQuickUrlButton(
+      String label, String url, TextEditingController controller) {
+    return ActionChip(
+      label: Text(
+        label,
+        style: GoogleFonts.roboto(fontSize: 11),
+      ),
+      backgroundColor: ClaudeColors.cardDark,
+      onPressed: () {
+        controller.text = url;
       },
     );
   }
