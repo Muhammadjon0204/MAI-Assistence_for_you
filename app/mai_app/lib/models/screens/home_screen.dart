@@ -2,8 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mai_app/models/screens/auth_screen.dart';
 import 'package:mai_app/models/screens/subscription_screen.dart';
 import 'package:mai_app/services/api_service.dart';
+import 'package:mai_app/services/auth_service.dart';
 import 'package:mai_app/services/history_service.dart';
 import 'package:mai_app/services/ocr_service.dart';
 import 'package:mai_app/services/subscription_service.dart';
@@ -45,6 +47,22 @@ class _HomeScreenState extends State<HomeScreen> {
   // ignore: unused_field
   File? _selectedImage;
   String? _recognizedText;
+  SubscriptionTier _currentTier = SubscriptionTier.free;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSubscription();
+  }
+
+  // Метод загрузки подписки
+  Future<void> _loadSubscription() async {
+    final subscription = await SubscriptionService().getSubscription();
+    setState(() {
+      _currentTier = subscription.tier;
+    });
+  }
+
   @override
   void dispose() {
     _problemController.dispose();
@@ -643,12 +661,69 @@ class _HomeScreenState extends State<HomeScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Версия 1.0\nMAI ИИ Ассистент',
-                style: TextStyle(color: ClaudeColors.textSecondary),
+              // Подписки
+              ListTile(
+                leading: const Icon(Icons.workspace_premium,
+                    color: Color(0xFFFFD700)),
+                title: const Text('Подписки',
+                    style: TextStyle(color: Colors.white)),
+                trailing: const Icon(Icons.arrow_forward_ios,
+                    color: Colors.white54, size: 16),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const SubscriptionScreen()),
+                  ).then((_) => _loadSubscription());
+                },
               ),
-              IconButton(
-                  onPressed: _showInputKeyDialog, icon: const Icon(Icons.key))
+
+              const Divider(color: Colors.white24),
+
+              // СЕКРЕТНАЯ КНОПКА - ДОЛГОЕ НАЖАТИЕ НА ВЕРСИИ! ← ДОБАВЬ
+              GestureDetector(
+                onLongPress: () {
+                  Navigator.pop(context);
+                  _showAdminDialog();
+                },
+                child: const ListTile(
+                  title: Text(
+                    'Версия 1.1',
+                    style: TextStyle(color: ClaudeColors.textSecondary),
+                    textAlign: TextAlign.center,
+                  ),
+                  subtitle: Text(
+                    'МАИ Математический Ассистент',
+                    style: TextStyle(
+                        color: ClaudeColors.textSecondary, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+
+              const Divider(color: Colors.white24),
+
+              // Выход
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text('Выйти из аккаунта',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final authService = AuthService();
+                  await authService.logout();
+                  if (mounted) {
+                    Navigator.pushAndRemoveUntil(
+                      // ignore: use_build_context_synchronously
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const AuthScreen()),
+                      (route) => false,
+                    );
+                  }
+                },
+              ),
             ],
           ),
           actions: [
@@ -663,6 +738,194 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ADMIN панель (открывается долгим нажатием на версию)
+  Future<void> _showAdminDialog() async {
+    final TextEditingController codeController = TextEditingController();
+
+    final authorized = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: ClaudeColors.secondaryDark,
+        title: const Row(
+          children: [
+            Icon(Icons.admin_panel_settings, color: Colors.red),
+            SizedBox(width: 12),
+            Text('ADMIN MODE', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Введите секретный код:',
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: codeController,
+              obscureText: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Код доступа',
+                hintStyle: const TextStyle(color: Colors.white30),
+                filled: true,
+                fillColor: ClaudeColors.cardDark,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Проверяем секретный код
+              if (codeController.text == 'adminKosimovM4343') {
+                // ← ТВОЙ СЕКРЕТНЫЙ КОД
+                Navigator.pop(context, true);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('❌ Неверный код!'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Войти'),
+          ),
+        ],
+      ),
+    );
+
+    if (authorized == true) {
+      _showAdminPanel();
+    }
+  }
+
+// ADMIN панель управления
+  Future<void> _showAdminPanel() async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1a1a1a),
+        title: const Row(
+          children: [
+            Icon(Icons.verified_user, color: Color(0xFFFFD700)),
+            SizedBox(width: 12),
+            Text('👑 ADMIN PANEL', style: TextStyle(color: Color(0xFFFFD700))),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Дать себе Premium
+            ListTile(
+              leading:
+                  const Icon(Icons.workspace_premium, color: Color(0xFFFFD700)),
+              title: const Text('Дать себе Premium',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Навсегда, бесплатно',
+                  style: TextStyle(color: Colors.white60, fontSize: 12)),
+              onTap: () => Navigator.pop(context, 'grant_premium'),
+            ),
+
+            const Divider(color: Colors.white24),
+
+            // Дать себе Pro
+            ListTile(
+              leading: const Icon(Icons.stars, color: Color(0xFF667eea)),
+              title: const Text('Дать себе Pro',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text('На 30 дней',
+                  style: TextStyle(color: Colors.white60, fontSize: 12)),
+              onTap: () => Navigator.pop(context, 'grant_pro'),
+            ),
+
+            const Divider(color: Colors.white24),
+
+            // Сбросить к Free
+            ListTile(
+              leading: const Icon(Icons.restore, color: Colors.grey),
+              title: const Text('Вернуться к Free',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(context, 'reset_free'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Закрыть'),
+          ),
+        ],
+      ),
+    );
+
+    // Выполняем действие
+    final subscriptionService = SubscriptionService();
+
+    switch (action) {
+      case 'grant_premium':
+        await subscriptionService.grantSubscription(
+          tier: SubscriptionTier.premium,
+          isLifetime: true,
+        );
+        _loadSubscription();
+        _showSuccessSnackbar(
+            '🎉 Premium активирован навсегда!', const Color(0xFFFFD700));
+        break;
+
+      case 'grant_pro':
+        await subscriptionService.grantSubscription(
+          tier: SubscriptionTier.pro,
+          durationDays: 30,
+        );
+        _loadSubscription();
+        _showSuccessSnackbar(
+            '✨ Pro активирован на 30 дней!', const Color(0xFF667eea));
+        break;
+
+      case 'reset_free':
+        await subscriptionService.grantSubscription(
+            tier: SubscriptionTier.free);
+        _loadSubscription();
+        _showSuccessSnackbar('Возврат к Free плану', Colors.grey);
+        break;
+    }
+  }
+
+// Показать уведомление об успехе
+  void _showSuccessSnackbar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  // ignore: unused_element
   void _showInputKeyDialog() {
     final TextEditingController apiKeyController = TextEditingController();
 
