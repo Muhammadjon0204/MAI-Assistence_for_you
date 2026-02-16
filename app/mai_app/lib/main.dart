@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mai_app/models/screens/home_screen.dart';
 import 'services/auth_service.dart';
-import 'screens/auth_screen.dart';
+import 'models/screens/auth_screen.dart';
 import 'theme/mai_theme.dart';
 
 void main() {

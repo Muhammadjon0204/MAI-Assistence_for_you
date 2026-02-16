@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 // ignore: unused_import
 import 'package:intl/intl.dart';
-import 'package:mai_app/screens/auth_screen.dart';
+import 'package:mai_app/models/screens/auth_screen.dart';
 import 'package:mai_app/services/auth_service.dart';
 import 'package:mai_app/services/history_service.dart';
 import 'package:mai_app/theme/mai_theme.dart';

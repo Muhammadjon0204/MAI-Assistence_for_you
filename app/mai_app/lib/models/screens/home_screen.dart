@@ -1,9 +1,12 @@
 // ignore_for_file: unused_field
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:mai_app/models/screens/subscription_screen.dart';
 import 'package:mai_app/services/api_service.dart';
 import 'package:mai_app/services/history_service.dart';
 import 'package:mai_app/services/ocr_service.dart';
+import 'package:mai_app/services/subscription_service.dart';
 import 'package:mai_app/theme/mai_theme.dart';
 import 'package:mai_app/widgets/message_bubble.dart';
 import 'dart:io';
@@ -62,20 +65,78 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
-        title: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.auto_awesome, color: ClaudeColors.accentPurple),
-            SizedBox(width: 8),
-            Text(
+            const Icon(Icons.auto_awesome, color: ClaudeColors.accentPurple),
+            const SizedBox(width: 8),
+            const Text(
               'MAI Assistent',
               style: TextStyle(
                 color: ClaudeColors.textPrimary,
                 fontWeight: FontWeight.w600,
               ),
             ),
+            const SizedBox(width: 8),
+            // Бэйдж подписки
+            FutureBuilder<Subscription>(
+              future: SubscriptionService().getSubscription(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const SizedBox();
+
+                final tier = snapshot.data!.tier;
+                final tierName = SubscriptionService().getTierName(tier);
+
+                Color badgeColor;
+                Gradient? gradient;
+
+                switch (tier) {
+                  case SubscriptionTier.free:
+                    badgeColor = Colors.grey;
+                    break;
+                  case SubscriptionTier.pro:
+                    badgeColor = const Color(0xFF667eea);
+                    break;
+                  case SubscriptionTier.premium:
+                    badgeColor = Colors.transparent;
+                    gradient = const LinearGradient(
+                      colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+                    );
+                    break;
+                }
+
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SubscriptionScreen(),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: gradient,
+                      color: gradient == null ? badgeColor : null,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      tierName,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ],
         ),
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -363,6 +424,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
+                // ignore: deprecated_member_use
                 color: ClaudeColors.accentBlue.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -406,15 +468,15 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 20),
 
               // Заголовок
-              Row(
+              const Row(
                 children: [
                   Icon(
                     Icons.text_fields,
                     color: ClaudeColors.accentBlue,
                     size: 18,
                   ),
-                  const SizedBox(width: 6),
-                  const Text(
+                  SizedBox(width: 6),
+                  Text(
                     'Распознанный текст:',
                     style: TextStyle(
                       color: ClaudeColors.textPrimary,
@@ -432,6 +494,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: ClaudeColors.cardDark,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
+                    // ignore: deprecated_member_use
                     color: ClaudeColors.accentBlue.withOpacity(0.3),
                     width: 1.5,
                   ),
@@ -461,24 +524,27 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
+                      // ignore: deprecated_member_use
                       ClaudeColors.accentBlue.withOpacity(0.1),
+                      // ignore: deprecated_member_use
                       ClaudeColors.accentPurple.withOpacity(0.1),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
+                    // ignore: deprecated_member_use
                     color: ClaudeColors.accentBlue.withOpacity(0.2),
                   ),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
                     Icon(
                       Icons.lightbulb_outline,
                       color: ClaudeColors.accentBlue,
                       size: 20,
                     ),
-                    const SizedBox(width: 10),
-                    const Expanded(
+                    SizedBox(width: 10),
+                    Expanded(
                       child: Text(
                         'OCR может ошибаться — проверьте и исправьте текст перед отправкой',
                         style: TextStyle(

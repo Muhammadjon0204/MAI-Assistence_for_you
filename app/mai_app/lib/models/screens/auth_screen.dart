@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mai_app/models/screens/home_screen.dart';
-import '../services/auth_service.dart';
-import '../theme/mai_theme.dart';
+import '../../services/auth_service.dart';
+import '../../theme/mai_theme.dart';
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({Key? key}) : super(key: key);
+  const AuthScreen({super.key});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -96,8 +96,8 @@ class _AuthScreenState extends State<AuthScreen> {
               Container(
                 width: 100,
                 height: 100,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
                     colors: [Color(0xFF667eea), Color(0xFF764ba2)],
                   ),
                   shape: BoxShape.circle,
@@ -276,7 +276,7 @@ class _AuthScreenState extends State<AuthScreen> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: Colors.white60),
+        labelStyle: const TextStyle(color: Colors.white60),
         prefixIcon: Icon(icon, color: ClaudeColors.accentBlue),
         filled: true,
         fillColor: ClaudeColors.secondaryDark,
@@ -286,11 +286,11 @@ class _AuthScreenState extends State<AuthScreen> {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white12),
+          borderSide: const BorderSide(color: Colors.white12),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: ClaudeColors.accentBlue, width: 2),
+          borderSide: const BorderSide(color: ClaudeColors.accentBlue, width: 2),
         ),
       ),
     );
