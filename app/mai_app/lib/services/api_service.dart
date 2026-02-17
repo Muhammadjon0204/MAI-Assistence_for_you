@@ -5,7 +5,7 @@ import '../models/math_problem.dart';
 class ApiService {
   // Используем относительный путь, чтобы Nginx проксировал запросы
   // Это работает и локально (если настроен прокси), и в Docker
-  static String baseUrl = 'http://localhost:5284/api';
+  static String baseUrl = '  https://mai-backend-e4hg.onrender.com/api';
   static void updateBaseUrl(String newUrl) {
     // Убираем /api если уже есть
     if (newUrl.endsWith('/api')) {
