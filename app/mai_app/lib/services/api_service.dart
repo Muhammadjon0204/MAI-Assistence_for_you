@@ -3,11 +3,11 @@ import 'package:http/http.dart' as http;
 import '../models/math_problem.dart';
 
 class ApiService {
-  // Используем относительный путь, чтобы Nginx проксировал запросы
-  // Это работает и локально (если настроен прокси), и в Docker
-  static String baseUrl = '  https://mai-backend-e4hg.onrender.com/api';
+  // Render Backend URL
+  static String baseUrl = 'https://mai-backend-e4hg.onrender.com/api';
+
+  // Обновить URL (из настроек приложения)
   static void updateBaseUrl(String newUrl) {
-    // Убираем /api если уже есть
     if (newUrl.endsWith('/api')) {
       baseUrl = newUrl;
     } else if (newUrl.endsWith('/')) {
@@ -17,19 +17,24 @@ class ApiService {
     }
   }
 
-  Future<MathSolution> solveProblem(String problem, String apiKey) async {
-    baseUrl = '$apiKey/api'; // Обновляем базовый URL на введенный пользователем
+  Future<MathSolution> solveProblem(String problem) async {
     try {
       final url = Uri.parse('$baseUrl/Math/solve');
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({'problem': problem}),
-      );
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({'problem': problem}),
+          )
+          .timeout(
+            const Duration(seconds: 60), // Для холодного старта Render
+            onTimeout: () =>
+                throw Exception('Сервер не отвечает. Попробуй ещё раз!'),
+          );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -45,7 +50,9 @@ class ApiService {
   Future<bool> testConnection() async {
     try {
       final url = Uri.parse('$baseUrl/Math/test');
-      final response = await http.get(url);
+      final response = await http.get(url).timeout(
+            const Duration(seconds: 10),
+          );
       return response.statusCode == 200;
     } catch (e) {
       return false;

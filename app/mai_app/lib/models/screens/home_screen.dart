@@ -331,7 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _scrollToBottom();
 
     try {
-      final solution = await _apiService.solveProblem(problem, apiKey);
+      final solution = await _apiService.solveProblem(problem);
       // ОЧИСТКА ОТВЕТА ОТ MARKDOWN СИМВОЛОВ ← ДОБАВЬ ЭТО!
       String cleanedSolution = solution.solution
           .replaceAll('**', '') // Убираем жирный текст
