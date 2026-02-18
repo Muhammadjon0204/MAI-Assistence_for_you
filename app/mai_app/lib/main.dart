@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:mai_app/models/screens/home_screen.dart';
 import 'services/auth_service.dart';
 import 'models/screens/auth_screen.dart';
 import 'theme/mai_theme.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  Stripe.publishableKey =
+      'pk_test_51T1mU6PjPI0z2HhUJgZk4bN2UW6Tpu79OaEQw6MUlZvc3erGCZvKKVxGzeVBnd30imeLIKQJbdqZ4PztQX4X3a5200BOToHaez'; // ← ВСТАВЬ СВОЙ!
+
   runApp(const MyApp());
 }
 
