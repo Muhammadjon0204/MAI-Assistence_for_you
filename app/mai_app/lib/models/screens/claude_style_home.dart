@@ -51,7 +51,7 @@ class _ClaudeStyleHomeState extends State<ClaudeStyleHome> {
 
           // Название модели
           Text(
-            'MAI Sonnet 4.6',
+            'MAI v1.0',
             style: GoogleFonts.sourceSerif4(
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -141,7 +141,7 @@ class _ClaudeStyleHomeState extends State<ClaudeStyleHome> {
               child: TextField(
                 controller: _messageController,
                 style: const TextStyle(
-                  color: Color(0xFF2d2d2d),
+                  color: Color.fromARGB(255, 255, 255, 255),
                   fontSize: 15,
                   height: 1.4,
                 ),
