@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
-import 'package:mai_app/models/screens/home_screen.dart';
+import 'package:mai_app/models/screens/auth_screen.dart';
+import 'package:mai_app/models/screens/claude_style_home.dart';
 import 'services/auth_service.dart';
-import 'models/screens/auth_screen.dart';
 import 'theme/mai_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   Stripe.publishableKey =
-      'pk_test_51T1mU6PjPI0z2HhUJgZk4bN2UW6Tpu79OaEQw6MUlZvc3erGCZvKKVxGzeVBnd30imeLIKQJbdqZ4PztQX4X3a5200BOToHaez'; // ← ВСТАВЬ СВОЙ!
+      'pk_test_51T1mU6PjPI0z2HhUJgZk4bN2UW6Tpu79OaEQw6MUlZvc3erGCZvKKVxGzeVBnd30imeLIKQJbdqZ4PztQX4X3a5200BOToHaez';
 
   runApp(const MyApp());
 }
@@ -30,7 +30,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// Экран загрузки - проверяет авторизацию
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -48,7 +47,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAuth() async {
-    await Future.delayed(const Duration(seconds: 1)); // Показываем splash
+    await Future.delayed(const Duration(seconds: 1));
 
     final isLoggedIn = await _authService.isLoggedIn();
 
@@ -56,8 +55,9 @@ class _SplashScreenState extends State<SplashScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              isLoggedIn ? const HomeScreen() : const AuthScreen(),
+          builder: (context) => isLoggedIn
+              ? const ClaudeStyleHome()
+              : const AuthScreen(), // ← ИЗМЕНЕНО!
         ),
       );
     }
@@ -66,29 +66,33 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ClaudeColors.primaryDark,
+      backgroundColor: const Color(0xFF1a1a1a), // ← Claude цвет
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Иконка как у Claude
             Container(
               width: 120,
               height: 120,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                  colors: [
+                    const Color(0xFFCC785C),
+                    const Color(0xFFCC785C).withOpacity(0.7),
+                  ],
                 ),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.calculate_rounded,
+                Icons.auto_awesome,
                 size: 60,
                 color: Colors.white,
               ),
             ),
             const SizedBox(height: 24),
             const CircularProgressIndicator(
-              color: Color(0xFF667eea),
+              color: Color(0xFFCC785C), // ← Claude цвет
             ),
           ],
         ),
