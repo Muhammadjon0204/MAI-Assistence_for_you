@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mai_app/models/screens/history_screen.dart';
 import 'package:mai_app/models/screens/subscription_screen.dart';
 import 'package:mai_app/services/subscription_service.dart';
 
@@ -265,7 +266,7 @@ class _ClaudeStyleHomeState extends State<ClaudeStyleHome> {
             _buildMenuItem(
               icon: Icons.add_comment_outlined,
               label: 'New chat',
-              color: const Color(0xFFCC785C),
+              color: const Color.fromARGB(223, 68, 118, 185),
               onTap: () {},
             ),
 
@@ -275,7 +276,14 @@ class _ClaudeStyleHomeState extends State<ClaudeStyleHome> {
             _buildMenuItem(
               icon: Icons.chat_bubble_outline,
               label: 'Chats',
-              onTap: () {},
+              onTap: () {
+                Navigator.pop(context); // Закрываем drawer
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const HistoryScreen()),
+                );
+              },
             ),
 
             // Проекты

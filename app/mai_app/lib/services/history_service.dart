@@ -1,29 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-
-class HistoryItem {
-  final String problem;
-  final String solution;
-  final DateTime timestamp;
-
-  HistoryItem({
-    required this.problem,
-    required this.solution,
-    required this.timestamp,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'problem': problem,
-        'solution': solution,
-        'timestamp': timestamp.toIso8601String(),
-      };
-
-  factory HistoryItem.fromJson(Map<String, dynamic> json) => HistoryItem(
-        problem: json['problem'],
-        solution: json['solution'],
-        timestamp: DateTime.parse(json['timestamp']),
-      );
-}
+import '../models/math_problem.dart'; // ← ДОБАВЬ ЭТОТ ИМПОРТ!
 
 class HistoryService {
   static const String _historyKey = 'mai_history';
@@ -36,10 +13,11 @@ class HistoryService {
     final history = await getHistory();
     history.insert(
         0,
-        HistoryItem(
+        MathSolution(
+          // ← ИЗМЕНЕНО!
           problem: problem,
           solution: solution,
-          timestamp: DateTime.now(),
+          timestamp: DateTime.now(), solver: '', success: true,
         ));
 
     // Ограничим до 50 последних запросов
@@ -47,19 +25,49 @@ class HistoryService {
       history.removeLast();
     }
 
-    final jsonList = history.map((item) => item.toJson()).toList();
-    await prefs.setString(_historyKey, jsonEncode(jsonList));
+    final jsonList = history
+        .map((item) => jsonEncode({
+              'problem': item.problem,
+              'solution': item.solution,
+              'timestamp': item.timestamp.toIso8601String(),
+            }))
+        .toList();
+
+    await prefs.setStringList(_historyKey, jsonList);
   }
 
   // Получить всю историю
-  Future<List<HistoryItem>> getHistory() async {
+  Future<List<MathSolution>> getHistory() async {
+    // ← ИЗМЕНЕНО!
     final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_historyKey);
+    final jsonList = prefs.getStringList(_historyKey);
 
-    if (jsonString == null) return [];
+    if (jsonList == null) return [];
 
-    final jsonList = jsonDecode(jsonString) as List;
-    return jsonList.map((json) => HistoryItem.fromJson(json)).toList();
+    return jsonList.map((jsonString) {
+      final json = jsonDecode(jsonString);
+      return MathSolution(
+        // ← ИЗМЕНЕНО!
+        problem: json['problem'],
+        solution: json['solution'],
+        timestamp: DateTime.parse(json['timestamp']), solver: '', success: true,
+      );
+    }).toList();
+  }
+
+  // Удалить элемент
+  Future<void> deleteItem(DateTime timestamp) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = prefs.getStringList(_historyKey) ?? [];
+
+    // Удаляем по timestamp
+    jsonList.removeWhere((jsonString) {
+      final data = jsonDecode(jsonString);
+      final itemTime = DateTime.parse(data['timestamp']);
+      return itemTime.isAtSameMomentAs(timestamp);
+    });
+
+    await prefs.setStringList(_historyKey, jsonList);
   }
 
   // Очистить историю
