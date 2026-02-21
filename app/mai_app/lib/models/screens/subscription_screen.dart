@@ -439,7 +439,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
         _loadSubscription();
         _showSuccess(
-            'Подписка ${_subscriptionService.getTierName(tier!)} активирована! ✨');
+            'Подписка ${_subscriptionService.getTierName(tier)} активирована! ✨');
       }
     } on StripeException catch (e) {
       // ignore: use_build_context_synchronously
