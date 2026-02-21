@@ -1,7 +1,9 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:mai_app/models/screens/auth_screen.dart';
-import 'package:mai_app/models/screens/claude_style_home.dart';
+import 'package:mai_app/models/screens/home_screen.dart';
 import 'services/auth_service.dart';
 import 'theme/mai_theme.dart';
 
@@ -56,7 +58,7 @@ class _SplashScreenState extends State<SplashScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => isLoggedIn
-              ? const ClaudeStyleHome()
+              ? const HomeScreen()
               : const AuthScreen(), // ← ИЗМЕНЕНО!
         ),
       );

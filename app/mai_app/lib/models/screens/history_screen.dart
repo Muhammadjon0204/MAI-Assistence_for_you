@@ -19,7 +19,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
   List<MathSolution> _allHistory = [];
   List<MathSolution> _filteredHistory = [];
   bool _isLoading = true;
-  String _userName = 'Пользователь';
 
   @override
   void initState() {
@@ -40,9 +39,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Future<void> _loadUserName() async {
     final user = await AuthService().getCurrentUser();
     if (user != null) {
-      setState(() {
-        _userName = user.nickname;
-      });
+      setState(() {});
     }
   }
 

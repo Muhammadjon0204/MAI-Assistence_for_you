@@ -1,22 +1,11 @@
-// ignore_for_file: unused_field, unused_import
+// ignore_for_file: deprecated_member_use, prefer_const_constructors, prefer_const_literals_to_create_immutables
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-// ignore: duplicate_ignore
-// ignore: unused_import
-import 'package:mai_app/models/screens/auth_screen.dart';
+import 'package:mai_app/models/screens/history_screen.dart';
 import 'package:mai_app/models/screens/subscription_screen.dart';
-import 'package:mai_app/services/api_service.dart';
-import 'package:mai_app/services/auth_service.dart';
-import 'package:mai_app/services/history_service.dart';
-import 'package:mai_app/services/ocr_service.dart';
 import 'package:mai_app/services/subscription_service.dart';
-import 'package:mai_app/theme/mai_theme.dart';
-import 'package:mai_app/widgets/message_bubble.dart';
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'history_screen.dart';
+import 'package:mai_app/models/chat_message.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,211 +14,256 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class ChatMessage {
-  final String text;
-  final bool isUser;
-  final String timestamp;
-
-  ChatMessage({
-    required this.text,
-    required this.isUser,
-    required this.timestamp,
-  });
-}
-
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _problemController = TextEditingController();
-  final ApiService _apiService = ApiService();
-  final HistoryService _historyService = HistoryService();
-  final OcrService _ocrService = OcrService();
+  final TextEditingController _messageController = TextEditingController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final List<ChatMessage> _messages = [];
-  final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
-  String napiKey = 'http://localhost:5284';
-  // ignore: duplicate_ignore
-  // ignore: unused_field
-  File? _selectedImage;
-  String? _recognizedText;
-  SubscriptionTier _currentTier = SubscriptionTier.free;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSubscription();
-    _loadApiUrl();
-  }
-
-  // Метод загрузки подписки
-  Future<void> _loadSubscription() async {
-    final subscription = await SubscriptionService().getSubscription();
-    setState(() {
-      _currentTier = subscription.tier;
-    });
-  }
-
-  // Метод загрузки API URL
-  Future<void> _loadApiUrl() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedUrl = prefs.getString('api_base_url');
-    if (savedUrl != null) {
-      setState(() {
-        napiKey = savedUrl;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _problemController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const HistoryScreen()),
-            );
-          },
-        ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.auto_awesome, color: ClaudeColors.accentPurple),
-            const SizedBox(width: 8),
-            const Text(
-              'MAI Assistent',
-              style: TextStyle(
-                color: ClaudeColors.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Бэйдж подписки
-            FutureBuilder<Subscription>(
-              future: SubscriptionService().getSubscription(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const SizedBox();
-
-                final tier = snapshot.data!.tier;
-                final tierName = SubscriptionService().getTierName(tier);
-
-                Color badgeColor;
-                Gradient? gradient;
-
-                switch (tier) {
-                  case SubscriptionTier.free:
-                    badgeColor = Colors.grey;
-                    break;
-                  case SubscriptionTier.pro:
-                    badgeColor = const Color(0xFF667eea);
-                    break;
-                  case SubscriptionTier.premium:
-                    badgeColor = Colors.transparent;
-                    gradient = const LinearGradient(
-                      colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
-                    );
-                    break;
-                }
-
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SubscriptionScreen(),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      gradient: gradient,
-                      color: gradient == null ? badgeColor : null,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      tierName,
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () {
-              _showSettingsDialog();
-            },
-            tooltip: 'Настройки',
-          ),
-        ],
-      ),
+      key: _scaffoldKey,
+      backgroundColor: const Color(0xFF1a1a1a),
+      drawer: _buildDrawer(),
       body: Column(
         children: [
+          _buildAppBar(),
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.only(bottom: 16),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                return MessageBubble(
-                  message: _messages[index].text,
-                  isUser: _messages[index].isUser,
-                  timestamp: _messages[index].timestamp,
-                );
-              },
-            ),
+            child: _messages.isEmpty // ← ИСПРАВЬ!
+                ? _buildEmptyState()
+                : _buildChatList(),
           ),
-          if (_isLoading) _buildLoadingIndicator(),
-          _buildInputField(),
+          if (_isLoading) _buildLoadingIndicator(), // ← ДОБАВЬ!
+          _buildInputBar(),
         ],
       ),
     );
   }
 
+  // Пустое состояние (когда нет сообщений)
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2d2d2d),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(
+              Icons.chat_outlined,
+              color: Colors.white54,
+              size: 40,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Welcome to MAI',
+            style: GoogleFonts.sourceSerif4(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Ask MAI anything to begin',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Colors.white54,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // AppBar как у Claude
+  Widget _buildAppBar() {
+    return Container(
+      padding: const EdgeInsets.only(top: 40, left: 16, right: 16, bottom: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1a1a1a),
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withOpacity(0.1)),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Кнопка меню
+          IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white, size: 28),
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+          const SizedBox(width: 12),
+
+          // Название модели
+          Text(
+            'MAI v1.0',
+            style: GoogleFonts.sourceSerif4(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+
+          const Spacer(),
+
+          // Иконка профиля
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2d2d2d),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.person_outline,
+                color: Colors.white70, size: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
+// Список сообщений
+  Widget _buildChatList() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _messages.length,
+      itemBuilder: (context, index) {
+        final message = _messages[index];
+        return _buildMessageBubble(message);
+      },
+    );
+  }
+
+// Пузырь сообщения
+  Widget _buildMessageBubble(ChatMessage message) {
+    return Align(
+      alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
+        child: Column(
+          crossAxisAlignment: message.isUser
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            // Сам пузырь
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: message.isUser
+                    ? const Color(0xFF2d2d2d)
+                    : const Color(0xFF2d2d2d).withOpacity(0.5),
+                borderRadius: BorderRadius.circular(16),
+                border: message.isUser
+                    ? Border.all(
+                        color: const Color(0xFFCC785C).withOpacity(0.3))
+                    : null,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Текст сообщения
+                  Text(
+                    message.text,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      color: Colors.white,
+                      height: 1.4,
+                    ),
+                  ),
+
+                  // Кнопка "Редактировать" для сообщений из OCR
+                  if (message.isUser && message.isFromOCR) ...[
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: () => _editMessage(message),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCC785C).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(0xFFCC785C).withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.edit_outlined,
+                              size: 14,
+                              color: Color(0xFFCC785C),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Редактировать',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: const Color(0xFFCC785C),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // Время
+            const SizedBox(height: 4),
+            Text(
+              _formatTime(message.dateTime),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: Colors.white38,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+
+// Индикатор загрузки
   Widget _buildLoadingIndicator() {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: ClaudeColors.accentPurple,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child:
-                const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
-          ),
-          const SizedBox(width: 12),
-          const Text(
-            'MAI thinking...',
-            style: TextStyle(color: ClaudeColors.textSecondary),
-          ),
-          const SizedBox(width: 8),
           const SizedBox(
-            width: 24,
-            height: 24,
+            width: 20,
+            height: 20,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: ClaudeColors.accentBlue,
+              color: Color(0xFFCC785C),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'MAI думает...',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Colors.white54,
             ),
           ),
         ],
@@ -237,412 +271,711 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildInputField() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: ClaudeColors.secondaryDark,
-        border: Border(
-          top: BorderSide(color: ClaudeColors.borderColor, width: 0.5),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Кнопка скрепки
-          // Кнопка скрепки - ДОБАВЛЯЕМ ДЕЙСТВИЕ!
-          IconButton(
-            icon: const Icon(Icons.attach_file,
-                color: ClaudeColors.textSecondary),
-            onPressed: _handleImagePick, // ← ИЗМЕНИЛИ!
-            padding: const EdgeInsets.all(8),
-          ),
-          const SizedBox(width: 8),
+// Редактировать сообщение
+  Future<void> _editMessage(ChatMessage message) async {
+    final controller = TextEditingController(text: message.text);
 
-          // Поле ввода
-          Expanded(
-            child: TextField(
-              controller: _problemController,
-              style: const TextStyle(
-                  color: ClaudeColors.textPrimary, fontSize: 15),
-              decoration: InputDecoration(
-                hintText: 'Задайте свой вопрос...',
-                hintStyle: TextStyle(
-                  color: ClaudeColors.textHint.withValues(alpha: 0.5),
-                  fontSize: 15,
-                ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              maxLines: 5,
-              minLines: 1,
-              textInputAction: TextInputAction.newline,
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          // Кнопка отправки
-          Container(
-            margin: const EdgeInsets.only(bottom: 4),
-            child: IconButton(
-              icon: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFF667eea),
-                      Color(0xFF764ba2),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.arrow_upward,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              onPressed: _isLoading ? null : () => _solveProblem(napiKey),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _solveProblem(String apiKey) async {
-    final problem = _problemController.text.trim();
-    if (problem.isEmpty) return;
-
-    setState(() {
-      _messages.add(ChatMessage(
-        text: problem,
-        isUser: true,
-        timestamp: _formatTime(DateTime.now()),
-      ));
-      _problemController.clear();
-      _isLoading = true;
-    });
-
-    _scrollToBottom();
-
-    try {
-      final solution = await _apiService.solveProblem(problem);
-      // ОЧИСТКА ОТВЕТА ОТ MARKDOWN СИМВОЛОВ ← ДОБАВЬ ЭТО!
-      String cleanedSolution = solution.solution
-          .replaceAll('**', '') // Убираем жирный текст
-          .replaceAll('*', '') // Убираем курсив
-          .replaceAll('###', '') // Убираем заголовки H3
-          .replaceAll('##', '') // Убираем заголовки H2
-          .replaceAll('#', '') // Убираем заголовки H1
-          .replaceAll('---', '') // Убираем разделители
-          .replaceAll('```', '') // Убираем блоки кода
-          .trim();
-      // СОХРАНИТЬ В ИСТОРИЮ
-      await _historyService.addToHistory(problem, solution.solution);
-
-      setState(() {
-        _messages.add(ChatMessage(
-          text: cleanedSolution,
-          isUser: false,
-          timestamp: _formatTime(DateTime.now()),
-        ));
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _messages.add(ChatMessage(
-          text: 'Ошибка: $e',
-          isUser: false,
-          timestamp: _formatTime(DateTime.now()),
-        ));
-        _isLoading = false;
-      });
-    }
-
-    _scrollToBottom();
-  }
-
-  Future<void> _handleImagePick() async {
-    // Показываем диалог: Камера или Галерея?
-    final source = await showDialog<ImageSource>(
+    final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: ClaudeColors.secondaryDark,
-        title: const Text(
-          'Выберите источник',
-          style: TextStyle(color: ClaudeColors.textPrimary),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading:
-                  const Icon(Icons.camera_alt, color: ClaudeColors.accentBlue),
-              title: const Text('Камера',
-                  style: TextStyle(color: ClaudeColors.textPrimary)),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library,
-                  color: ClaudeColors.accentPurple),
-              title: const Text('Галерея',
-                  style: TextStyle(color: ClaudeColors.textPrimary)),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (source == null) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      // Получаем фото
-      final File? imageFile = source == ImageSource.camera
-          ? await _ocrService.takePhoto()
-          : await _ocrService.pickImage();
-
-      if (imageFile == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Распознаём текст
-      final recognizedText = await _ocrService.recognizeText(imageFile);
-
-      setState(() {
-        _selectedImage = imageFile;
-        _recognizedText = recognizedText;
-        _isLoading = false;
-      });
-
-      // Показываем редактируемую карточку
-      _showEditableTextDialog(recognizedText, imageFile);
-    } catch (e) {
-      setState(() => _isLoading = false);
-
-      // Показываем ошибку
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showEditableTextDialog(String initialText, File imageFile) {
-    final TextEditingController editController =
-        TextEditingController(text: initialText);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Нельзя закрыть случайным тапом
-      builder: (context) => AlertDialog(
-        backgroundColor: ClaudeColors.secondaryDark,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                // ignore: deprecated_member_use
-                color: ClaudeColors.accentBlue.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.edit_rounded,
-                color: ClaudeColors.accentBlue,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Проверьте текст',
-              style: TextStyle(
-                color: ClaudeColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF2d2d2d),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Превью фото
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  height: 200,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    image: DecorationImage(
-                      image: FileImage(imageFile),
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
               // Заголовок
-              const Row(
+              Row(
                 children: [
-                  Icon(
-                    Icons.text_fields,
-                    color: ClaudeColors.accentBlue,
-                    size: 18,
-                  ),
-                  SizedBox(width: 6),
+                  const Icon(Icons.edit, color: Color(0xFFCC785C)),
+                  const SizedBox(width: 12),
                   Text(
-                    'Распознанный текст:',
-                    style: TextStyle(
-                      color: ClaudeColors.textPrimary,
+                    'Редактирование',
+                    style: GoogleFonts.sourceSerif4(
+                      fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                      color: Colors.white,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
 
-              // Редактируемое поле
+              const SizedBox(height: 20),
+
+              // Поле редактирования
               Container(
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: ClaudeColors.cardDark,
+                  color: const Color(0xFF1a1a1a),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    // ignore: deprecated_member_use
-                    color: ClaudeColors.accentBlue.withOpacity(0.3),
-                    width: 1.5,
-                  ),
                 ),
                 child: TextField(
-                  controller: editController,
-                  maxLines: 6,
-                  style: const TextStyle(
-                    color: ClaudeColors.textPrimary,
-                    fontSize: 15,
-                    height: 1.5,
-                  ),
-                  decoration: const InputDecoration(
-                    hintText: 'Исправьте если нужно...',
-                    hintStyle: TextStyle(color: ClaudeColors.textHint),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(16),
-                  ),
+                  controller: controller,
                   autofocus: true,
+                  maxLines: 5,
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                  decoration: const InputDecoration(
+                    hintText: 'Введите текст...',
+                    hintStyle: TextStyle(color: Colors.white38),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
 
-              // Подсказка с иконкой
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      // ignore: deprecated_member_use
-                      ClaudeColors.accentBlue.withOpacity(0.1),
-                      // ignore: deprecated_member_use
-                      ClaudeColors.accentPurple.withOpacity(0.1),
+              const SizedBox(height: 20),
+
+              // Кнопки
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'Отмена',
+                      style: GoogleFonts.inter(color: Colors.white54),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context, controller.text);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFCC785C),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check, size: 18),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Сохранить',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (result != null && result.isNotEmpty && result != message.text) {
+      setState(() {
+        message.text = result; // ← Просто меняем текст!
+      });
+
+      _sendMessage(customText: result);
+    }
+  }
+
+  // Показать меню вложений (камера, галерея, файл)
+  void _showAttachmentMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2d2d2d),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildAttachmentOption(
+              icon: Icons.camera_alt,
+              label: 'Камера',
+              onTap: () {
+                Navigator.pop(context);
+                _openCamera();
+              },
+            ),
+            _buildAttachmentOption(
+              icon: Icons.photo_library,
+              label: 'Галерея',
+              onTap: () {
+                Navigator.pop(context);
+                _openGallery();
+              },
+            ),
+            _buildAttachmentOption(
+              icon: Icons.insert_drive_file,
+              label: 'Файл',
+              onTap: () {
+                Navigator.pop(context);
+                _openFilePicker();
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttachmentOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFF3d3d3d),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: Colors.white70),
+            ),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openCamera() async {
+    // Временная заглушка:
+    const recognizedText = '2x + 5 = 13'; // ← Сюда подставишь результат OCR
+
+    // Отправляем с пометкой isFromOCR = true
+    _sendMessage(customText: recognizedText, isFromOCR: true);
+  }
+
+// Галерея
+  void _openGallery() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Галерея в разработке')),
+    );
+  }
+
+// Файлы
+  void _openFilePicker() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Выбор файла в разработке')),
+    );
+  }
+
+// Голосовой ввод
+  void _startVoiceInput() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Голосовой ввод в разработке')),
+    );
+  }
+
+  void _sendMessage({String? customText, bool isFromOCR = false}) {
+    final text = customText ?? _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _messages.add(ChatMessage(
+        text: text,
+        isUser: true,
+        isFromOCR: isFromOCR,
+        timestamp: DateTime.now(), // ← БЕЗ строки!
+      ));
+      _isLoading = true;
+    });
+
+    _messageController.clear();
+
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _messages.add(ChatMessage(
+            text: 'Ответ от AI на: $text',
+            isUser: false,
+            timestamp: DateTime.now(), // ← БЕЗ строки!
+            isFromOCR: false,
+          ));
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+// Поле ввода внизу
+  Widget _buildInputBar() {
+    // Проверяем есть ли текст
+    final hasText = _messageController.text.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: const Color(0xFF1a1a1a),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // РЯД 1: Поле ввода
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2d2d2d),
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: TextField(
+                controller: _messageController,
+                onChanged: (value) =>
+                    setState(() {}), // ← Обновляем UI при вводе
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  height: 1.4,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Chat with MAI...',
+                  hintStyle: TextStyle(
+                    color: Colors.white.withOpacity(0.4),
+                    fontSize: 15,
+                  ),
+                  filled: false,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                maxLines: 5,
+                minLines: 1,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // РЯД 2: Кнопки
+            SizedBox(
+              width: double.infinity,
+              child: Row(
+                children: [
+                  // Кнопка плюс (слева) - показываем только если НЕТ текста
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2d2d2d),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.add,
+                          color: Colors.white70, size: 24),
+                      padding: EdgeInsets.zero,
+                      onPressed: _showAttachmentMenu,
+                    ),
+                  ),
+
+                  const Spacer(),
+
+                  // Кнопки справа
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Если НЕТ текста - показываем микрофон
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2d2d2d),
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.mic_none,
+                              color: Colors.white70, size: 24),
+                          padding: EdgeInsets.zero,
+                          onPressed: _startVoiceInput,
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      // Если ЕСТЬ текст - показываем кнопку отправки, иначе - волны
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          gradient: hasText
+                              ? LinearGradient(
+                                  colors: [
+                                    const Color.fromARGB(255, 63, 160, 212),
+                                    const Color.fromARGB(255, 92, 120, 204)
+                                        .withOpacity(0.7),
+                                  ],
+                                )
+                              : null,
+                          color: hasText ? null : const Color(0xFF2d2d2d),
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            hasText ? Icons.arrow_upward : Icons.graphic_eq,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          padding: EdgeInsets.zero,
+                          onPressed: hasText ? _sendMessage : null,
+                        ),
+                      ),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    // ignore: deprecated_member_use
-                    color: ClaudeColors.accentBlue.withOpacity(0.2),
-                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Боковое меню
+  Widget _buildDrawer() {
+    return Drawer(
+      backgroundColor: const Color(0xFF1a1a1a),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Заголовок
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'MAI',
+                style: GoogleFonts.sourceSerif4(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
                 ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.lightbulb_outline,
-                      color: ClaudeColors.accentBlue,
-                      size: 20,
+              ),
+            ),
+
+            // Новый чат
+            _buildMenuItem(
+              icon: Icons.add_comment_outlined,
+              label: 'New chat',
+              color: const Color.fromARGB(223, 68, 118, 185),
+              onTap: () {},
+            ),
+
+            const SizedBox(height: 8),
+
+            // Чаты
+            _buildMenuItem(
+              icon: Icons.chat_bubble_outline,
+              label: 'Chats',
+              onTap: () {
+                Navigator.pop(context); // Закрываем drawer
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const HistoryScreen()),
+                );
+              },
+            ),
+
+            // Проекты
+            _buildMenuItem(
+              icon: Icons.folder_outlined,
+              label: 'Projects',
+              onTap: () {},
+            ),
+
+            // Artifacts
+            _buildMenuItem(
+              icon: Icons.grid_view_outlined,
+              label: 'Artifacts',
+              onTap: () {},
+            ),
+
+            _buildAITrainerMenuItem(),
+
+            const SizedBox(height: 24),
+
+            // Recents
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                'Recents',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Colors.white54,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // История чатов
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                children: [
+                  _buildHistoryItem('Решение уравнений'),
+                  _buildHistoryItem('Производная функции'),
+                  _buildHistoryItem('Интегралы'),
+                ],
+              ),
+            ),
+
+            // Профиль внизу
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Colors.white.withOpacity(0.1)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2d2d2d),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    SizedBox(width: 10),
-                    Expanded(
+                    child: const Center(
                       child: Text(
-                        'OCR может ошибаться — проверьте и исправьте текст перед отправкой',
+                        'M',
                         style: TextStyle(
-                          color: ClaudeColors.textSecondary,
-                          fontSize: 12,
-                          height: 1.4,
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
                         ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Muhammad',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined,
+                        color: Colors.white70),
+                    onPressed: () {},
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAITrainerDialog() async {
+    // Проверяем подписку
+    final subscription = await SubscriptionService().getSubscription();
+    final isPremium = subscription.tier == SubscriptionTier.premium;
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF2d2d2d),
+                Color(0xFF1a1a1a),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: const Color(0xFFCC785C).withOpacity(0.3),
+              width: 2,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Заголовок с иконкой
+              Container(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFFCC785C),
+                            const Color(0xFFCC785C).withOpacity(0.7),
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.psychology,
+                        color: Colors.white,
+                        size: 40,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      '🤖 AI Тренер',
+                      style: GoogleFonts.sourceSerif4(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Персональный помощник для обучения',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.white60,
                       ),
                     ),
                   ],
                 ),
               ),
+
+              // Особенности
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    _buildFeatureItem('📊', 'Анализирует твои ошибки'),
+                    _buildFeatureItem('📚', 'Составляет план обучения'),
+                    _buildFeatureItem('💡', 'Даёт персональные советы'),
+                    _buildFeatureItem('🎯', 'Отслеживает прогресс'),
+                    _buildFeatureItem('🔥', 'Мотивирует и поддерживает'),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Кнопка действия
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: isPremium
+                    ? ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFCC785C),
+                          minimumSize: Size(double.infinity, 56),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Text(
+                          'Начать тренировку',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    : ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          // Открыть экран подписок
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SubscriptionScreen(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          minimumSize: const Size(double.infinity, 56),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: const BorderSide(
+                              color: Color(0xFFFFD700),
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.workspace_premium,
+                                color: Color(0xFFFFD700)),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Получить Premium',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFFFFD700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+
+              const SizedBox(height: 24),
             ],
           ),
         ),
-        actions: [
-          // Кнопка "Переснять"
-          TextButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              _handleImagePick(); // Переснять фото
-            },
-            icon: const Icon(Icons.camera_alt, size: 18),
-            label: const Text('Переснять'),
-            style: TextButton.styleFrom(
-              foregroundColor: ClaudeColors.textSecondary,
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Кнопка "Отмена"
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Отмена',
-              style: TextStyle(color: ClaudeColors.textSecondary),
-            ),
-          ),
-          // Кнопка "Решить"
-          ElevatedButton.icon(
-            onPressed: () {
-              final editedText = editController.text.trim();
-              if (editedText.isEmpty) {
-                // Показать ошибку
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Текст не может быть пустым'),
-                    backgroundColor: Colors.red,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-                return;
-              }
+      ),
+    );
+  }
 
-              Navigator.pop(context);
-              _problemController.text = editedText;
-              _solveProblem(napiKey);
-            },
-            icon: const Icon(Icons.check_rounded, size: 18),
-            label: const Text('Решить'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ClaudeColors.accentBlue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+  Widget _buildFeatureItem(String emoji, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Text(emoji, style: TextStyle(fontSize: 20)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.white70,
               ),
             ),
           ),
@@ -651,345 +984,121 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: ClaudeColors.secondaryDark,
-          title: const Text(
-            'Настройки',
-            style: TextStyle(color: ClaudeColors.textPrimary),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Подписки
-              ListTile(
-                leading: const Icon(Icons.workspace_premium,
-                    color: Color(0xFFFFD700)),
-                title: const Text('Подписки',
-                    style: TextStyle(color: Colors.white)),
-                trailing: const Icon(Icons.arrow_forward_ios,
-                    color: Colors.white54, size: 16),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const SubscriptionScreen()),
-                  ).then((_) => _loadSubscription());
-                },
-              ),
-
-              const Divider(color: Colors.white24),
-
-              const Divider(color: Colors.white24),
-
-              // СЕКРЕТНАЯ КНОПКА - Долгое нажатие на Версию
-              GestureDetector(
-                onLongPress: () {
-                  Navigator.pop(context);
-                  _showAdminDialog();
-                },
-                child: const ListTile(
-                  title: Text(
-                    'Версия 1.1',
-                    style: TextStyle(color: ClaudeColors.textSecondary),
-                    textAlign: TextAlign.center,
-                  ),
-                  subtitle: Text(
-                    'МАИ Математический Ассистент',
-                    style: TextStyle(
-                        color: ClaudeColors.textSecondary, fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-
-              const Divider(color: Colors.white24),
+  Widget _buildAITrainerMenuItem() {
+    return InkWell(
+      onTap: () => _showAITrainerDialog(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFFCC785C).withOpacity(0.1),
+              const Color(0xFFCC785C).withOpacity(0.05),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Закрыть',
-                  style: TextStyle(color: ClaudeColors.accentBlue)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ADMIN панель (открывается долгим нажатием на версию)
-  Future<void> _showAdminDialog() async {
-    final TextEditingController codeController = TextEditingController();
-
-    final authorized = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: ClaudeColors.secondaryDark,
-        title: const Row(
-          children: [
-            Icon(Icons.admin_panel_settings, color: Colors.red),
-            SizedBox(width: 12),
-            Text('ADMIN MODE', style: TextStyle(color: Colors.red)),
-          ],
+          borderRadius: BorderRadius.circular(8),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            const Text(
-              'Введите секретный код:',
-              style: TextStyle(color: Colors.white70),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFCC785C),
+                    const Color(0xFFCC785C).withOpacity(0.7),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child:
+                  const Icon(Icons.psychology, color: Colors.white, size: 16),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: codeController,
-              obscureText: true,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Код доступа',
-                hintStyle: const TextStyle(color: Colors.white30),
-                filled: true,
-                fillColor: ClaudeColors.cardDark,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                'AI Тренер',
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Отмена'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // Проверяем секретный код
-              if (codeController.text == 'adminKosimovM4343') {
-                // ← ТВОЙ СЕКРЕТНЫЙ КОД
-                Navigator.pop(context, true);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('❌ Неверный код!'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
-            child: const Text('Войти'),
-          ),
-        ],
-      ),
-    );
-
-    if (authorized == true) {
-      _showAdminPanel();
-    }
-  }
-
-// ADMIN панель управления
-  Future<void> _showAdminPanel() async {
-    final action = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1a1a1a),
-        title: const Row(
-          children: [
-            Icon(Icons.verified_user, color: Color(0xFFFFD700)),
-            SizedBox(width: 12),
-            Text('👑 ADMIN PANEL', style: TextStyle(color: Color(0xFFFFD700))),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Дать себе Premium
-            ListTile(
-              leading:
-                  const Icon(Icons.workspace_premium, color: Color(0xFFFFD700)),
-              title: const Text('Дать себе Premium',
-                  style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Навсегда, бесплатно',
-                  style: TextStyle(color: Colors.white60, fontSize: 12)),
-              onTap: () => Navigator.pop(context, 'grant_premium'),
-            ),
-
-            const Divider(color: Colors.white24),
-
-            // Дать себе Pro
-            ListTile(
-              leading: const Icon(Icons.stars, color: Color(0xFF667eea)),
-              title: const Text('Дать себе Pro',
-                  style: TextStyle(color: Colors.white)),
-              subtitle: const Text('На 30 дней',
-                  style: TextStyle(color: Colors.white60, fontSize: 12)),
-              onTap: () => Navigator.pop(context, 'grant_pro'),
-            ),
-
-            const Divider(color: Colors.white24),
-
-            // Сбросить к Free
-            ListTile(
-              leading: const Icon(Icons.restore, color: Colors.grey),
-              title: const Text('Вернуться к Free',
-                  style: TextStyle(color: Colors.white)),
-              onTap: () => Navigator.pop(context, 'reset_free'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Закрыть'),
-          ),
-        ],
-      ),
-    );
-
-    // Выполняем действие
-    final subscriptionService = SubscriptionService();
-
-    switch (action) {
-      case 'grant_premium':
-        await subscriptionService.grantSubscription(
-          tier: SubscriptionTier.premium,
-          isLifetime: true,
-        );
-        _loadSubscription();
-        _showSuccessSnackbar(
-            '🎉 Premium активирован навсегда!', const Color(0xFFFFD700));
-        break;
-
-      case 'grant_pro':
-        await subscriptionService.grantSubscription(
-          tier: SubscriptionTier.pro,
-          durationDays: 30,
-        );
-        _loadSubscription();
-        _showSuccessSnackbar(
-            '✨ Pro активирован на 30 дней!', const Color(0xFF667eea));
-        break;
-
-      case 'reset_free':
-        await subscriptionService.grantSubscription(
-            tier: SubscriptionTier.free);
-        _loadSubscription();
-        _showSuccessSnackbar('Возврат к Free плану', Colors.grey);
-        break;
-    }
-  }
-
-// Показать уведомление об успехе
-  void _showSuccessSnackbar(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white),
-            const SizedBox(width: 12),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  // ignore: unused_element
-  void _showInputKeyDialog() {
-    final TextEditingController apiKeyController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: ClaudeColors.secondaryDark,
-          title: const Text(
-            'Введите API ключ',
-            style: TextStyle(color: ClaudeColors.textPrimary),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Здесь вы можете ввести свой API ключ для доступа к сервису решения задач. Это позволит вам использовать приложение с вашим аккаунтом и сохранять историю решений.',
-                style: TextStyle(color: ClaudeColors.textSecondary),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: apiKeyController,
-                style: const TextStyle(color: ClaudeColors.textPrimary),
-                decoration: InputDecoration(
-                  hintText: (napiKey != '') ? napiKey : 'Введите ваш API ключ',
-                  hintStyle: const TextStyle(color: ClaudeColors.textHint),
-                  filled: true,
-                  fillColor: ClaudeColors.cardDark,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
                 ),
+                borderRadius: BorderRadius.circular(12),
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Закрыть',
-                  style: TextStyle(color: ClaudeColors.accentBlue)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final apiKey = apiKeyController.text.trim();
-                if (apiKey.isNotEmpty) {
-                  setState(
-                    () {
-                      napiKey =
-                          apiKey; // Здесь вы можете сохранить ключ в состоянии или использовать его для настройки ApiService
-                    },
-                  );
-                  // Save or use the API key here
-                  Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ClaudeColors.accentBlue,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.workspace_premium, color: Colors.white, size: 12),
+                  SizedBox(width: 4),
+                  Text(
+                    'Premium',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
-              child: const Text('Сохранить'),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 
-  String _formatTime(DateTime time) {
-    return '${time.hour}:${time.minute.toString().padLeft(2, '0')}';
+  Widget _buildMenuItem({
+    required IconData icon,
+    required String label,
+    Color? color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, color: color ?? Colors.white70, size: 22),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                color: color ?? Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistoryItem(String title) {
+    return InkWell(
+      onTap: () {},
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Text(
+          title,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            color: Colors.white70,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
   }
 }
