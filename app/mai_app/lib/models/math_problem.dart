@@ -20,7 +20,7 @@ class MathSolution {
     required this.solution,
     required this.solver,
     required this.timestamp,
-    required this.success,
+    required this.success, required List<String> steps,
   });
 
   factory MathSolution.fromJson(Map<String, dynamic> json) {

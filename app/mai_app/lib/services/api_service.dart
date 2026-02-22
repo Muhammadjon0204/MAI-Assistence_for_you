@@ -31,14 +31,42 @@ class ApiService {
             body: jsonEncode({'problem': problem}),
           )
           .timeout(
-            const Duration(seconds: 60), // Для холодного старта Render
+            const Duration(seconds: 120), // Увеличили для Render
             onTimeout: () =>
                 throw Exception('Сервер не отвечает. Попробуй ещё раз!'),
           );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return MathSolution.fromJson(data);
+
+        // ИСПРАВЛЕНИЕ: обрабатываем разные форматы ответа
+        String solution;
+        if (data['solution'] is String) {
+          solution = data['solution'];
+        } else if (data['solution'] is List) {
+          solution = (data['solution'] as List).join('\n');
+        } else {
+          solution = data['solution'].toString();
+        }
+
+        // Обрабатываем steps
+        List<String> steps = [];
+        if (data['steps'] != null) {
+          if (data['steps'] is String) {
+            steps = [data['steps']];
+          } else if (data['steps'] is List) {
+            steps = (data['steps'] as List).cast<String>();
+          }
+        }
+
+        return MathSolution(
+          problem: problem,
+          solution: solution,
+          steps: steps,
+          timestamp: DateTime.now(),
+          success: data['success'] ?? false,
+          solver: 'Render Backend',
+        );
       } else {
         throw Exception('Ошибка ${response.statusCode}: ${response.body}');
       }
