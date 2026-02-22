@@ -17,7 +17,7 @@ class HistoryService {
           // ← ИЗМЕНЕНО!
           problem: problem,
           solution: solution,
-          timestamp: DateTime.now(), solver: '', success: true,
+          timestamp: DateTime.now(), solver: '', success: true, steps: [],
         ));
 
     // Ограничим до 50 последних запросов
@@ -50,7 +50,7 @@ class HistoryService {
         // ← ИЗМЕНЕНО!
         problem: json['problem'],
         solution: json['solution'],
-        timestamp: DateTime.parse(json['timestamp']), solver: '', success: true,
+        timestamp: DateTime.parse(json['timestamp']), solver: '', success: true, steps: [],
       );
     }).toList();
   }

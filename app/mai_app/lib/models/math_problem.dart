@@ -29,7 +29,7 @@ class MathSolution {
       solution: json['solution'] ?? '',
       solver: json['solver'] ?? 'Unknown',
       timestamp: DateTime.parse(json['timestamp']),
-      success: json['success'] ?? false,
+      success: json['success'] ?? false, steps: [],
     );
   }
 }
