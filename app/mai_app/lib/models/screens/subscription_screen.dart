@@ -1,15 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
-import 'package:mai_app/services/subscription_service.dart';
-import 'package:mai_app/theme/mai_theme.dart';
-import 'package:path/path.dart';
+import '../../services/subscription_service.dart';
 
 class SubscriptionScreen extends StatefulWidget {
-  const SubscriptionScreen({super.key});
+  const SubscriptionScreen({Key? key}) : super(key: key);
 
   @override
   State<SubscriptionScreen> createState() => _SubscriptionScreenState();
@@ -37,32 +31,35 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ClaudeColors.primaryDark,
+      backgroundColor: const Color(0xFF1a1a1a),
       appBar: AppBar(
-        title: Text(
-          'Подписки',
-          style: GoogleFonts.poppins(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        backgroundColor: ClaudeColors.secondaryDark,
+        backgroundColor: const Color(0xFF1a1a1a),
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
+        title: Text(
+          'Подписки',
+          style: GoogleFonts.sourceSerif4(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFFCC785C)))
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Заголовок
                   Text(
                     'Выберите план',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(
+                    style: GoogleFonts.sourceSerif4(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -70,525 +67,324 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Получите больше от MAI',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.roboto(
-                      fontSize: 16,
-                      color: Colors.white60,
+                    'Получите больше возможностей с MAI',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.white54,
                     ),
                   ),
                   const SizedBox(height: 32),
-                  _buildTierCard(SubscriptionTier.free),
+
+                  // Free Plan
+                  _buildTierCard(
+                    tier: SubscriptionTier.free,
+                    name: 'Free',
+                    price: 'Бесплатно',
+                    features: [
+                      '10 запросов в день',
+                      'Базовая модель AI',
+                      'История запросов',
+                      'OCR распознавание',
+                    ],
+                    color: const Color(0xFF2d2d2d),
+                  ),
+
                   const SizedBox(height: 16),
-                  _buildTierCard(SubscriptionTier.pro),
+
+                  // Pro Plan
+                  _buildTierCard(
+                    tier: SubscriptionTier.pro,
+                    name: 'Pro',
+                    price: '299₽/мес',
+                    features: [
+                      '100 запросов в день',
+                      'Продвинутая модель AI',
+                      'Приоритетная поддержка',
+                      'Без рекламы',
+                    ],
+                    color: const Color(0xFF667eea),
+                    isPopular: true,
+                  ),
+
                   const SizedBox(height: 16),
-                  _buildTierCard(SubscriptionTier.premium),
+
+                  // Premium Plan
+                  _buildTierCard(
+                    tier: SubscriptionTier.premium,
+                    name: 'Premium',
+                    price: '599₽/мес',
+                    features: [
+                      'Безлимитные запросы',
+                      'Лучшая модель AI',
+                      'AI Тренер',
+                      'Эксклюзивные функции',
+                    ],
+                    color: const Color(0xFFFFD700),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Информация
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2d2d2d),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline,
+                            color: Color(0xFFCC785C)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Подписку можно отменить в любое время',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildTierCard(SubscriptionTier tier) {
-    final isActive = _currentTier == tier;
-    final tierName = _subscriptionService.getTierName(tier);
-    final tierPrice = _subscriptionService.getTierPrice(tier);
-    final features = _subscriptionService.getTierFeatures(tier);
-
-    Color cardColor;
-    Color accentColor;
-
-    switch (tier) {
-      case SubscriptionTier.free:
-        cardColor = ClaudeColors.secondaryDark;
-        accentColor = Colors.grey;
-        break;
-      case SubscriptionTier.pro:
-        cardColor = ClaudeColors.secondaryDark;
-        accentColor = const Color(0xFF667eea);
-        break;
-      case SubscriptionTier.premium:
-        cardColor = ClaudeColors.secondaryDark;
-        accentColor = const Color(0xFFFFD700);
-        break;
-    }
+  Widget _buildTierCard({
+    required SubscriptionTier tier,
+    required String name,
+    required String price,
+    required List<String> features,
+    required Color color,
+    Gradient? gradient,
+    bool isPopular = false,
+  }) {
+    final bool isActive = _currentTier == tier;
 
     return Container(
       decoration: BoxDecoration(
-        color: cardColor,
+        gradient: gradient,
+        color: gradient == null ? color : null,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isActive ? accentColor : Colors.white12,
-          width: isActive ? 3 : 1,
-        ),
-        boxShadow: isActive
-            ? [
-                BoxShadow(
-                  // ignore: deprecated_member_use
-                  color: accentColor.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ]
+        border: isActive
+            ? Border.all(color: const Color(0xFFCC785C), width: 3)
             : null,
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Название и бэйдж
-            Row(
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: tier == SubscriptionTier.premium
-                        ? const LinearGradient(
-                            colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
-                          )
-                        : null,
-                    color:
-                        tier != SubscriptionTier.premium ? accentColor : null,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    tierName,
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                // Название и бэйдж
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      name,
+                      style: GoogleFonts.sourceSerif4(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: gradient != null ? Colors.black : Colors.white,
+                      ),
                     ),
+                    if (isActive)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCC785C),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Активно',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Цена
+                Text(
+                  price,
+                  style: GoogleFonts.poppins(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: gradient != null ? Colors.black : Colors.white,
                   ),
                 ),
-                const Spacer(),
-                if (isActive)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Активно',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                const SizedBox(height: 20),
+
+                // Особенности
+                ...features.map((feature) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: gradient != null
+                                ? Colors.black
+                                : const Color(0xFFCC785C),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              feature,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: gradient != null
+                                    ? Colors.black87
+                                    : Colors.white70,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+
+                const SizedBox(height: 16),
+
+                // Кнопка
+                if (!isActive)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _handleSubscribe(tier),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: gradient != null
+                            ? Colors.black
+                            : const Color(0xFFCC785C),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        tier == SubscriptionTier.free ? 'Выбрать' : 'Оформить',
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
               ],
             ),
+          ),
 
-            const SizedBox(height: 16),
-
-            // Цена
-            Text(
-              tierPrice,
-              style: GoogleFonts.poppins(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Особенности
-            ...features.map((feature) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle,
-                        color: accentColor,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          feature,
-                          style: GoogleFonts.roboto(
-                            fontSize: 14,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
-
-            const SizedBox(height: 20),
-
-            // Кнопка
-            if (!isActive)
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () => _handleSubscribe(tier),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: accentColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    tier == SubscriptionTier.free
-                        ? 'Вернуться к Free'
-                        : 'Выбрать',
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
+          // Бэйдж "Популярно"
+          if (isPopular)
+            Positioned(
+              top: 20,
+              right: 20,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.orange,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '🔥 Популярно',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
                   ),
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
 
   Future<void> _handleSubscribe(SubscriptionTier tier) async {
     if (tier == SubscriptionTier.free) {
+      // Бесплатный план — просто активируем
       await _subscriptionService.grantSubscription(tier: tier);
       _loadSubscription();
-      _showSuccess('Переведено на Free план');
+      _showSuccess('Переключено на Free план');
       return;
     }
 
-    // Показываем диалог подтверждения
-    final confirmed = await showDialog<bool>(
-      context: context as BuildContext,
+    // Платные планы — показываем заглушку
+    showDialog(
+      context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: ClaudeColors.secondaryDark,
+        backgroundColor: const Color(0xFF2d2d2d),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
         title: Text(
-          'Покупка подписки',
-          style: GoogleFonts.poppins(
-            color: Colors.white,
+          'Оплата',
+          style: GoogleFonts.sourceSerif4(
             fontSize: 20,
             fontWeight: FontWeight.w600,
+            color: Colors.white,
           ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'Вы выбрали: ${_subscriptionService.getTierName(tier)}',
-              style: GoogleFonts.roboto(
-                color: Colors.white70,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _subscriptionService.getTierPrice(tier),
-              style: GoogleFonts.poppins(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+            const Icon(
+              Icons.payment,
+              size: 64,
+              color: Color(0xFFCC785C),
             ),
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                // ignore: deprecated_member_use
-                color: Colors.green.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.credit_card, color: Colors.green, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Безопасная оплата через Stripe',
-                      style: GoogleFonts.roboto(
-                        color: Colors.green,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
+            Text(
+              'Интеграция с платёжной системой в разработке',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.white70,
               ),
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(context),
             child: Text(
-              'Отмена',
-              style: GoogleFonts.poppins(color: Colors.white70),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF667eea),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                'Оплатить',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              'Закрыть',
+              style: GoogleFonts.inter(color: Colors.white70),
             ),
           ),
         ],
       ),
     );
-
-    if (confirmed == true) {
-      await _processStripePayment(tier);
-    }
   }
 
-// ДОБАВЬ ЭТОТ НОВЫЙ МЕТОД:
-  Future<void> _processStripePayment(SubscriptionTier tier) async {
-    try {
-      // Показываем индикатор загрузки
-      showDialog(
-        context: context as BuildContext,
-        barrierDismissible: false,
-        builder: (context) => Center(
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: ClaudeColors.secondaryDark,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(color: Color(0xFF667eea)),
-                SizedBox(height: 16),
-                Text(
-                  'Обработка платежа...',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ],
-            ),
-          ),
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFCC785C),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
         ),
-      );
-
-      // 1. Создаём Payment Intent на Backend
-      final response = await http.post(
-        Uri.parse(
-            'https://mai-backend-e4hg.onrender.com/api/Stripe/create-payment-intent'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'tier': tier == SubscriptionTier.pro ? 'pro' : 'premium',
-        }),
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception('Ошибка создания платежа');
-      }
-
-      final data = jsonDecode(response.body);
-      final clientSecret = data['clientSecret'];
-
-      // 2. Инициализируем Payment Sheet
-      await Stripe.instance.initPaymentSheet(
-        paymentSheetParameters: SetupPaymentSheetParameters(
-          paymentIntentClientSecret: clientSecret,
-          merchantDisplayName: 'MAI Math AI',
-          style: ThemeMode.dark,
-        ),
-      );
-
-      // Закрываем индикатор загрузки
-      Navigator.pop(context as BuildContext);
-
-      // 3. Показываем Payment Sheet
-      await Stripe.instance.presentPaymentSheet();
-
-      // 4. Платёж успешен — активируем подписку
-      await _subscriptionService.purchaseSubscription(
-        tier: tier,
-        durationDays: 30,
-      );
-
-      _loadSubscription();
-      _showSuccess(
-          '🎉 Подписка ${_subscriptionService.getTierName(tier)} активирована!');
-
-      // ignore: unrelated_type_equality_checks
-      if (confirmed == true) {
-        await _subscriptionService.purchaseSubscription(
-          tier: tier,
-          durationDays: 30,
-        );
-
-        _loadSubscription();
-        _showSuccess(
-            'Подписка ${_subscriptionService.getTierName(tier)} активирована! ✨');
-      }
-    } on StripeException catch (e) {
-      // ignore: use_build_context_synchronously
-      Navigator.pop(context as BuildContext); // Закрываем загрузку
-
-      if (e.error.code == FailureCode.Canceled) {
-        // Пользователь отменил
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(context as BuildContext).showSnackBar(
-          const SnackBar(
-            content: Text('Платёж отменён'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      } else {
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(context as BuildContext).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка: ${e.error.message ?? "Неизвестная ошибка"}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      // ignore: use_build_context_synchronously
-      Navigator.pop(context as BuildContext); // Закрываем загрузку
-
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
-        SnackBar(
-          content: Text('Ошибка: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+      ),
+    );
   }
-
-  // Показываем диалог оплаты
-  Future<bool?> get confirmed async => await showDialog<bool>(
-        context: context as BuildContext,
-        builder: (context) => AlertDialog(
-          backgroundColor: ClaudeColors.secondaryDark,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Text(
-            'Покупка подписки',
-            style: GoogleFonts.poppins(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Вы выбрали: ${_subscriptionService.getTierName(tier!)}',
-                style: GoogleFonts.roboto(
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                _subscriptionService.getTierPrice(tier!),
-                style: GoogleFonts.poppins(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  // ignore: deprecated_member_use
-                  color: Colors.orange.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline,
-                        color: Colors.orange, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Это демо версия\nРеальная оплата не работает',
-                        style: GoogleFonts.roboto(
-                          color: Colors.orange,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(
-                'Отмена',
-                style: GoogleFonts.poppins(color: Colors.white70),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF667eea),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  'Купить (Демо)',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-
-  SubscriptionTier? get tier => null;
-}
-
-void _showSuccess(String message) {
-  ScaffoldMessenger.of(context as BuildContext).showSnackBar(
-    SnackBar(
-      content: Row(
-        children: [
-          const Icon(Icons.check_circle, color: Colors.white),
-          const SizedBox(width: 12),
-          Expanded(child: Text(message)),
-        ],
-      ),
-      backgroundColor: Colors.green[700],
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      duration: const Duration(seconds: 3),
-    ),
-  );
 }

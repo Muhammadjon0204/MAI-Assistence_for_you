@@ -3,9 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mai_app/models/screens/history_screen.dart';
-import 'package:mai_app/models/screens/subscription_screen.dart';
-import 'package:mai_app/services/subscription_service.dart';
+import 'package:mai_app/models/screens/subscription_screen.dart' as screens;
 import 'package:mai_app/models/chat_message.dart';
+import 'package:mai_app/services/api_service.dart';
+import 'package:mai_app/services/history_service.dart';
+import 'package:mai_app/services/subscription_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,6 +21,38 @@ class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
+
+  // Сервисы
+  final ApiService _apiService = ApiService();
+  final HistoryService _historyService = HistoryService();
+  final SubscriptionService _subscriptionService = SubscriptionService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  // Загрузка истории при запуске
+  Future<void> _loadHistory() async {
+    final history = await _historyService.getHistory();
+    setState(() {
+      _messages.addAll(history.map((item) => ChatMessage(
+            text: item.problem,
+            isUser: true,
+            timestamp: item.timestamp,
+          )));
+
+      // Добавляем ответы AI
+      for (var item in history) {
+        _messages.add(ChatMessage(
+          text: item.solution,
+          isUser: false,
+          timestamp: item.timestamp,
+        ));
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,52 +116,64 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // AppBar как у Claude
-  Widget _buildAppBar() {
-    return Container(
-      padding: const EdgeInsets.only(top: 40, left: 16, right: 16, bottom: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1a1a1a),
-        border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(0.1)),
+Widget _buildAppBar() {
+  return Container(
+    padding: const EdgeInsets.only(top: 40, left: 16, right: 16, bottom: 16),
+    decoration: BoxDecoration(
+      color: const Color(0xFF1a1a1a),
+      border: Border(
+        bottom: BorderSide(color: Colors.white.withOpacity(0.1)),
+      ),
+    ),
+    child: Row(
+      children: [
+        // Кнопка меню
+        IconButton(
+          icon: const Icon(Icons.menu, color: Colors.white, size: 28),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
-      ),
-      child: Row(
-        children: [
-          // Кнопка меню
-          IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white, size: 28),
-            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-          ),
-          const SizedBox(width: 12),
+        const SizedBox(width: 12),
 
-          // Название модели
-          Text(
-            'MAI v1.0',
-            style: GoogleFonts.sourceSerif4(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
+        // Название модели
+        Text(
+          'MAI v1.0',
+          style: GoogleFonts.sourceSerif4(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
           ),
+        ),
 
-          const Spacer(),
+        const Spacer(),
 
-          // Иконка профиля
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: const Color(0xFF2d2d2d),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.person_outline,
-                color: Colors.white70, size: 20),
+        // КНОПКА ПОДПИСОК ← НОВОЕ!
+        IconButton(
+          icon: const Icon(Icons.workspace_premium, color: Color(0xFFFFD700), size: 24),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => screens.SubscriptionScreen()),
+            );
+          },
+        ),
+        
+        const SizedBox(width: 8),
+
+        // Иконка профиля
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: const Color(0xFF2d2d2d),
+            borderRadius: BorderRadius.circular(8),
           ),
-        ],
-      ),
-    );
-  }
+          child: const Icon(Icons.person_outline,
+              color: Colors.white70, size: 20),
+        ),
+      ],
+    ),
+  );
+}
 
 // Список сообщений
   Widget _buildChatList() {
@@ -371,10 +417,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (result != null && result.isNotEmpty && result != message.text) {
       setState(() {
-        message.text = result; // ← Просто меняем текст!
+        message.text = result;
+
+        // Удаляем старый ответ AI (если есть следующее сообщение)
+        final index = _messages.indexOf(message);
+        if (index != -1 && index + 1 < _messages.length) {
+          if (!_messages[index + 1].isUser) {
+            _messages.removeAt(index + 1);
+          }
+        }
       });
 
-      _sendMessage(customText: result);
+      // Отправляем отредактированное сообщение заново
+      await _sendMessage(customText: result);
     }
   }
 
@@ -466,11 +521,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openCamera() async {
-    // Временная заглушка:
-    const recognizedText = '2x + 5 = 13'; // ← Сюда подставишь результат OCR
+    // TODO: Интегрировать реальный OCR
+    // Временная заглушка с распознанным текстом:
+    const recognizedText = '2x + 5 = 13';
 
     // Отправляем с пометкой isFromOCR = true
-    _sendMessage(customText: recognizedText, isFromOCR: true);
+    await _sendMessage(customText: recognizedText, isFromOCR: true);
   }
 
 // Галерея
@@ -494,35 +550,86 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _sendMessage({String? customText, bool isFromOCR = false}) {
+// Отправить сообщение
+  Future<void> _sendMessage(
+      {String? customText, bool isFromOCR = false}) async {
     final text = customText ?? _messageController.text.trim();
     if (text.isEmpty) return;
 
+    // Проверяем подписку и лимиты
+    final subscription = await _subscriptionService.getSubscription();
+
+    if (!await _subscriptionService.canMakeQuery()) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Достигнут лимит запросов (${subscription.dailyQueriesUsed}/${_subscriptionService.getDailyLimit(subscription.tier)}). '
+            'Обновите подписку!',
+          ),
+          backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'Подписка',
+            textColor: Colors.white,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const screens.SubscriptionScreen()),
+              );
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Добавляем сообщение пользователя
     setState(() {
       _messages.add(ChatMessage(
         text: text,
         isUser: true,
         isFromOCR: isFromOCR,
-        timestamp: DateTime.now(), // ← БЕЗ строки!
+        timestamp: DateTime.now(),
       ));
       _isLoading = true;
     });
 
     _messageController.clear();
 
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _messages.add(ChatMessage(
-            text: 'Ответ от AI на: $text',
-            isUser: false,
-            timestamp: DateTime.now(), // ← БЕЗ строки!
-            isFromOCR: false,
-          ));
-          _isLoading = false;
-        });
-      }
-    });
+    try {
+      // Отправляем в AI
+      final solution = await _apiService.solveProblem(text);
+
+      if (!mounted) return;
+
+      setState(() {
+        _messages.add(ChatMessage(
+          text: solution.solution,
+          isUser: false,
+          timestamp: DateTime.now(),
+        ));
+        _isLoading = false;
+      });
+
+      // Сохраняем в историю
+      await _historyService.addToHistory(text, solution.solution);
+
+      // Обновляем счётчик запросов
+      await _subscriptionService.incrementQueryCount();
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _messages.add(ChatMessage(
+          text: 'Ошибка: ${e.toString()}',
+          isUser: false,
+          timestamp: DateTime.now(),
+        ));
+        _isLoading = false;
+      });
+    }
   }
 
 // Поле ввода внизу
@@ -659,145 +766,169 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Боковое меню
-  Widget _buildDrawer() {
-    return Drawer(
-      backgroundColor: const Color(0xFF1a1a1a),
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Заголовок
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'MAI',
-                style: GoogleFonts.sourceSerif4(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
+// Боковое меню
+Widget _buildDrawer() {
+  return Drawer(
+    backgroundColor: const Color(0xFF1a1a1a),
+    child: SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Заголовок с кнопкой подписок
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'MAI',
+                  style: GoogleFonts.sourceSerif4(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-            ),
-
-            // Новый чат
-            _buildMenuItem(
-              icon: Icons.add_comment_outlined,
-              label: 'New chat',
-              color: const Color.fromARGB(223, 68, 118, 185),
-              onTap: () {},
-            ),
-
-            const SizedBox(height: 8),
-
-            // Чаты
-            _buildMenuItem(
-              icon: Icons.chat_bubble_outline,
-              label: 'Chats',
-              onTap: () {
-                Navigator.pop(context); // Закрываем drawer
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const HistoryScreen()),
-                );
-              },
-            ),
-
-            // Проекты
-            _buildMenuItem(
-              icon: Icons.folder_outlined,
-              label: 'Projects',
-              onTap: () {},
-            ),
-
-            // Artifacts
-            _buildMenuItem(
-              icon: Icons.grid_view_outlined,
-              label: 'Artifacts',
-              onTap: () {},
-            ),
-
-            _buildAITrainerMenuItem(),
-
-            const SizedBox(height: 24),
-
-            // Recents
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                'Recents',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: Colors.white54,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // История чатов
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                children: [
-                  _buildHistoryItem('Решение уравнений'),
-                  _buildHistoryItem('Производная функции'),
-                  _buildHistoryItem('Интегралы'),
-                ],
-              ),
-            ),
-
-            // Профиль внизу
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Colors.white.withOpacity(0.1)),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2d2d2d),
-                      borderRadius: BorderRadius.circular(20),
+                // КНОПКА ПОДПИСОК
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
                     ),
-                    child: const Center(
-                      child: Text(
-                        'M',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.workspace_premium, color: Colors.white),
+                    onPressed: () {
+                      Navigator.pop(context); // Закрываем drawer
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => screens.SubscriptionScreen()),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Новый чат
+          _buildMenuItem(
+            icon: Icons.add_comment_outlined,
+            label: 'New chat',
+            color: const Color.fromARGB(223, 68, 118, 185),
+            onTap: () {},
+          ),
+
+          const SizedBox(height: 8),
+
+          // Чаты
+          _buildMenuItem(
+            icon: Icons.chat_bubble_outline,
+            label: 'Chats',
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const HistoryScreen()),
+              );
+            },
+          ),
+
+          // Проекты
+          _buildMenuItem(
+            icon: Icons.folder_outlined,
+            label: 'Projects',
+            onTap: () {},
+          ),
+
+          // Artifacts
+          _buildMenuItem(
+            icon: Icons.grid_view_outlined,
+            label: 'Artifacts',
+            onTap: () {},
+          ),
+
+          _buildAITrainerMenuItem(),
+
+          const SizedBox(height: 24),
+
+          // Recents
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              'Recents',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: Colors.white54,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // История чатов
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              children: [
+                _buildHistoryItem('Решение уравнений'),
+                _buildHistoryItem('Производная функции'),
+                _buildHistoryItem('Интегралы'),
+              ],
+            ),
+          ),
+
+          // Профиль внизу
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Colors.white.withOpacity(0.1)),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2d2d2d),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'M',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Muhammad',
-                      style: TextStyle(color: Colors.white),
-                    ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Muhammad',
+                    style: TextStyle(color: Colors.white),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.settings_outlined,
-                        color: Colors.white70),
-                    onPressed: () {},
-                  ),
-                ],
-              ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined,
+                      color: Colors.white70),
+                  onPressed: () {},
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Future<void> _showAITrainerDialog() async {
     // Проверяем подписку
@@ -901,7 +1032,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFCC785C),
-                          minimumSize: Size(double.infinity, 56),
+                          minimumSize: const Size(double.infinity, 56),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -921,7 +1052,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const SubscriptionScreen(),
+                              builder: (context) =>
+                                  const screens.SubscriptionScreen(),
                             ),
                           );
                         },
