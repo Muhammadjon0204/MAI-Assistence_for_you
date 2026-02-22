@@ -80,8 +80,8 @@ class _SplashScreenState extends State<SplashScreen> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFFCC785C),
-                    const Color(0xFFCC785C).withOpacity(0.7),
+                    const Color.fromARGB(255, 21, 164, 216),
+                    const Color.fromARGB(255, 57, 104, 186).withOpacity(0.7),
                   ],
                 ),
                 shape: BoxShape.circle,
@@ -94,7 +94,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             const SizedBox(height: 24),
             const CircularProgressIndicator(
-              color: Color(0xFFCC785C), // ← Claude цвет
+              color: Color.fromARGB(255, 57, 154, 244), // ← Claude цвет
             ),
           ],
         ),

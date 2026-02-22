@@ -62,10 +62,8 @@ class ApiService {
         return MathSolution(
           problem: problem,
           solution: solution,
-          steps: steps,
           timestamp: DateTime.now(),
-          success: data['success'] ?? false,
-          solver: 'Render Backend',
+          steps: steps.join('\n'),
         );
       } else {
         throw Exception('Ошибка ${response.statusCode}: ${response.body}');
