@@ -73,6 +73,33 @@ class ApiService {
     }
   }
 
+  Stream<String> solveProblemStream(String problem) async* {
+    final client = http.Client();
+    try {
+      final uri = Uri.parse(
+          '$baseUrl/Math/stream?problem=${Uri.encodeComponent(problem)}');
+      final request = http.Request('GET', uri);
+      final response = await client.send(request).timeout(
+            const Duration(seconds: 120),
+          );
+
+      await for (final line in response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())) {
+        if (line.startsWith('data: ')) {
+          final data = line.substring(6);
+          if (data == '[DONE]') break;
+          try {
+            final text = jsonDecode(data) as String;
+            yield text;
+          } catch (_) {}
+        }
+      }
+    } finally {
+      client.close();
+    }
+  }
+
   Future<bool> testConnection() async {
     try {
       final url = Uri.parse('$baseUrl/Math/test');

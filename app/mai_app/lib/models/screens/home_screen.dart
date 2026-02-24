@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use, prefer_const_constructors, prefer_const_literals_to_create_immutables
 
+import 'dart:async'; // ← ИСПРАВЛЕНИЕ 1: добавлен импорт для StreamSubscription
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mai_app/models/screens/history_screen.dart';
@@ -20,7 +21,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _messageController = TextEditingController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final List<ChatMessage> _messages = [];
-  bool _isLoading = false;
+
+  // ← ИСПРАВЛЕНИЕ 2: убрали _isLoading, оставили только _isGenerating
+  bool _isGenerating = false;
+  StreamSubscription<String>? _streamSubscription;
 
   // Сервисы
   final ApiService _apiService = ApiService();
@@ -33,25 +37,144 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadHistory();
   }
 
+  @override
+  void dispose() {
+    _streamSubscription?.cancel();
+    _messageController.dispose();
+    super.dispose();
+  }
+
   // Загрузка истории при запуске
   Future<void> _loadHistory() async {
-    final history = await _historyService.getHistory();
-    setState(() {
-      _messages.addAll(history.map((item) => ChatMessage(
+    try {
+      final history = await _historyService.getHistory();
+      setState(() {
+        for (var item in history) {
+          // ← ИСПРАВЛЕНИЕ 3: добавлен id в ChatMessage
+          _messages.add(ChatMessage(
+            id: '${item.timestamp.millisecondsSinceEpoch}_user',
             text: item.problem,
             isUser: true,
             timestamp: item.timestamp,
-          )));
+          ));
+          _messages.add(ChatMessage(
+            id: '${item.timestamp.millisecondsSinceEpoch}_ai',
+            text: item.solution,
+            isUser: false,
+            timestamp: item.timestamp,
+          ));
+        }
+      });
+    } catch (e) {
+      // Если история сломана — просто пропускаем
+      debugPrint('History load error: $e');
+    }
+  }
 
-      // Добавляем ответы AI
-      for (var item in history) {
-        _messages.add(ChatMessage(
-          text: item.solution,
-          isUser: false,
-          timestamp: item.timestamp,
-        ));
-      }
+  // ← ИСПРАВЛЕНИЕ 4: один единственный _sendMessage, поддерживает и обычный и OCR режим
+  Future<void> _sendMessage(
+      {String? customText, bool isFromOCR = false}) async {
+    final text = customText ?? _messageController.text.trim();
+    if (text.isEmpty || _isGenerating) return;
+
+    // Проверяем подписку и лимиты
+    final subscription = await _subscriptionService.getSubscription();
+    if (!await _subscriptionService.canMakeQuery()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Достигнут лимит запросов (${subscription.dailyQueriesUsed}/${_subscriptionService.getDailyLimit(subscription.tier)}). '
+            'Обновите подписку!',
+          ),
+          backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'Подписка',
+            textColor: Colors.white,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const screens.SubscriptionScreen()),
+              );
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
+    _messageController.clear();
+
+    setState(() {
+      _messages.add(ChatMessage(
+        id: DateTime.now().toString(),
+        text: text,
+        isUser: true,
+        isFromOCR: isFromOCR,
+        timestamp: DateTime.now(),
+      ));
+      _isGenerating = true;
     });
+
+    // Добавляем пустое сообщение AI — будем заполнять по мере стриминга
+    final aiMessageId = DateTime.now().millisecondsSinceEpoch.toString();
+    setState(() {
+      _messages.add(ChatMessage(
+        id: aiMessageId,
+        text: '',
+        isUser: false,
+        timestamp: DateTime.now(),
+      ));
+    });
+
+    String fullResponse = '';
+
+    _streamSubscription = _apiService.solveProblemStream(text).listen(
+      (chunk) {
+        fullResponse += chunk;
+        if (!mounted) return;
+        setState(() {
+          final idx = _messages.indexWhere((m) => m.id == aiMessageId);
+          if (idx != -1) {
+            _messages[idx] = ChatMessage(
+              id: aiMessageId,
+              text: fullResponse,
+              isUser: false,
+              timestamp: _messages[idx].timestamp,
+            );
+          }
+        });
+      },
+      onDone: () {
+        if (!mounted) return;
+        setState(() => _isGenerating = false);
+        _historyService.addToHistory(text, fullResponse);
+        _subscriptionService.incrementQueryCount();
+      },
+      onError: (e) {
+        if (!mounted) return;
+        setState(() {
+          final idx = _messages.indexWhere((m) => m.id == aiMessageId);
+          if (idx != -1) {
+            _messages[idx] = ChatMessage(
+              id: aiMessageId,
+              text: 'Ошибка: $e',
+              isUser: false,
+              timestamp: _messages[idx].timestamp,
+            );
+          }
+          _isGenerating = false;
+        });
+      },
+    );
+  }
+
+  // Остановить генерацию
+  void _stopGeneration() {
+    _streamSubscription?.cancel();
+    if (!mounted) return;
+    setState(() => _isGenerating = false);
   }
 
   @override
@@ -64,18 +187,15 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _buildAppBar(),
           Expanded(
-            child: _messages.isEmpty // ← ИСПРАВЬ!
-                ? _buildEmptyState()
-                : _buildChatList(),
+            child: _messages.isEmpty ? _buildEmptyState() : _buildChatList(),
           ),
-          if (_isLoading) _buildLoadingIndicator(), // ← ДОБАВЬ!
           _buildInputBar(),
         ],
       ),
     );
   }
 
-  // Пустое состояние (когда нет сообщений)
+  // Пустое состояние
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -134,26 +254,20 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Row(
         children: [
-          // Кнопка меню
           IconButton(
             icon: const Icon(Icons.menu, color: Colors.white, size: 28),
             onPressed: () => _scaffoldKey.currentState?.openDrawer(),
           ),
           const SizedBox(width: 12),
-
-          // Название модели
           Text(
-            'MAI v1.0',
+            'MAI v0.2',
             style: GoogleFonts.sourceSerif4(
               fontSize: 20,
               fontWeight: FontWeight.w600,
               color: Colors.white,
             ),
           ),
-
           const Spacer(),
-
-          // КНОПКА ПОДПИСОК ← НОВОЕ!
           IconButton(
             icon: const Icon(Icons.workspace_premium,
                 color: Color(0xFFFFD700), size: 24),
@@ -165,10 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-
           const SizedBox(width: 8),
-
-          // Иконка профиля
           Container(
             width: 32,
             height: 32,
@@ -184,7 +295,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-// Список сообщений
   Widget _buildChatList() {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -196,8 +306,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-// Пузырь сообщения
   Widget _buildMessageBubble(ChatMessage message) {
+    final isTyping = !message.isUser && _isGenerating && message.text.isEmpty;
+
     return Align(
       alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -210,7 +321,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start,
           children: [
-            // Сам пузырь
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -226,17 +336,39 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Текст сообщения
-                  Text(
-                    message.text,
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      color: Colors.white,
-                      height: 1.4,
-                    ),
-                  ),
+                  // ← Пока текст пустой — показываем анимацию "печатает"
+                  isTyping
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: const Color(0xFFCC785C),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'MAI думает...',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: Colors.white54,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          message.text,
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            color: Colors.white,
+                            height: 1.4,
+                          ),
+                        ),
 
-                  // Кнопка "Редактировать" для сообщений из OCR
+                  // Кнопка редактировать для OCR сообщений
                   if (message.isUser && message.isFromOCR) ...[
                     const SizedBox(height: 12),
                     InkWell(
@@ -279,8 +411,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-
-            // Время
             const SizedBox(height: 4),
             Text(
               _formatTime(message.dateTime),
@@ -299,34 +429,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
-// Индикатор загрузки
-  Widget _buildLoadingIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Color(0xFFCC785C),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            'MAI думает...',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: Colors.white54,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-// Редактировать сообщение
   Future<void> _editMessage(ChatMessage message) async {
     final controller = TextEditingController(text: message.text);
 
@@ -341,7 +443,6 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Заголовок
               Row(
                 children: [
                   const Icon(Icons.edit, color: Color(0xFFCC785C)),
@@ -356,10 +457,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 20),
-
-              // Поле редактирования
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -380,10 +478,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              // Кнопки
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -396,9 +491,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context, controller.text);
-                    },
+                    onPressed: () => Navigator.pop(context, controller.text),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFCC785C),
                       shape: RoundedRectangleBorder(
@@ -427,8 +520,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (result != null && result.isNotEmpty && result != message.text) {
       setState(() {
         message.text = result;
-
-        // Удаляем старый ответ AI (если есть следующее сообщение)
         final index = _messages.indexOf(message);
         if (index != -1 && index + 1 < _messages.length) {
           if (!_messages[index + 1].isUser) {
@@ -436,13 +527,10 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
       });
-
-      // Отправляем отредактированное сообщение заново
       await _sendMessage(customText: result);
     }
   }
 
-  // Показать меню вложений (камера, галерея, файл)
   void _showAttachmentMenu() {
     showModalBottomSheet(
       context: context,
@@ -518,10 +606,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 16),
             Text(
               label,
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                color: Colors.white,
-              ),
+              style: GoogleFonts.inter(fontSize: 16, color: Colors.white),
             ),
           ],
         ),
@@ -530,120 +615,30 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openCamera() async {
-    // TODO: Интегрировать реальный OCR
-    // Временная заглушка с распознанным текстом:
     const recognizedText = '2x + 5 = 13';
-
-    // Отправляем с пометкой isFromOCR = true
     await _sendMessage(customText: recognizedText, isFromOCR: true);
   }
 
-// Галерея
   void _openGallery() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Галерея в разработке')),
     );
   }
 
-// Файлы
   void _openFilePicker() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Выбор файла в разработке')),
     );
   }
 
-// Голосовой ввод
   void _startVoiceInput() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Голосовой ввод в разработке')),
     );
   }
 
-// Отправить сообщение
-  Future<void> _sendMessage(
-      {String? customText, bool isFromOCR = false}) async {
-    final text = customText ?? _messageController.text.trim();
-    if (text.isEmpty) return;
-
-    // Проверяем подписку и лимиты
-    final subscription = await _subscriptionService.getSubscription();
-
-    if (!await _subscriptionService.canMakeQuery()) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Достигнут лимит запросов (${subscription.dailyQueriesUsed}/${_subscriptionService.getDailyLimit(subscription.tier)}). '
-            'Обновите подписку!',
-          ),
-          backgroundColor: Colors.red,
-          action: SnackBarAction(
-            label: 'Подписка',
-            textColor: Colors.white,
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const screens.SubscriptionScreen()),
-              );
-            },
-          ),
-        ),
-      );
-      return;
-    }
-
-    // Добавляем сообщение пользователя
-    setState(() {
-      _messages.add(ChatMessage(
-        text: text,
-        isUser: true,
-        isFromOCR: isFromOCR,
-        timestamp: DateTime.now(),
-      ));
-      _isLoading = true;
-    });
-
-    _messageController.clear();
-
-    try {
-      // Отправляем в AI
-      final solution = await _apiService.solveProblem(text);
-
-      if (!mounted) return;
-
-      setState(() {
-        _messages.add(ChatMessage(
-          text: solution.solution,
-          isUser: false,
-          timestamp: DateTime.now(),
-        ));
-        _isLoading = false;
-      });
-
-      // Сохраняем в историю
-      await _historyService.addToHistory(text, solution.solution);
-
-      // Обновляем счётчик запросов
-      await _subscriptionService.incrementQueryCount();
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _messages.add(ChatMessage(
-          text: 'Ошибка: ${e.toString()}',
-          isUser: false,
-          timestamp: DateTime.now(),
-        ));
-        _isLoading = false;
-      });
-    }
-  }
-
-// Поле ввода внизу
+  // ← ИСПРАВЛЕНИЕ 5: кнопка меняется между Стоп и Отправить
   Widget _buildInputBar() {
-    // Проверяем есть ли текст
     final hasText = _messageController.text.isNotEmpty;
 
     return Container(
@@ -653,7 +648,6 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // РЯД 1: Поле ввода
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -663,8 +657,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: TextField(
                 controller: _messageController,
-                onChanged: (value) =>
-                    setState(() {}), // ← Обновляем UI при вводе
+                onChanged: (value) => setState(() {}),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 15,
@@ -689,15 +682,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 minLines: 1,
               ),
             ),
-
             const SizedBox(height: 12),
-
-            // РЯД 2: Кнопки
             SizedBox(
               width: double.infinity,
               child: Row(
                 children: [
-                  // Кнопка плюс (слева) - показываем только если НЕТ текста
                   Container(
                     width: 44,
                     height: 44,
@@ -712,14 +701,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       onPressed: _showAttachmentMenu,
                     ),
                   ),
-
                   const Spacer(),
-
-                  // Кнопки справа
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Если НЕТ текста - показываем микрофон
                       Container(
                         width: 44,
                         height: 44,
@@ -734,34 +719,44 @@ class _HomeScreenState extends State<HomeScreen> {
                           onPressed: _startVoiceInput,
                         ),
                       ),
-
                       const SizedBox(width: 10),
 
-                      // Если ЕСТЬ текст - показываем кнопку отправки, иначе - волны
+                      // ← ИСПРАВЛЕНИЕ 6: кнопка Стоп/Отправить
                       Container(
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          gradient: hasText
+                          gradient: (hasText || _isGenerating)
                               ? LinearGradient(
-                                  colors: [
-                                    const Color.fromARGB(255, 63, 160, 212),
-                                    const Color.fromARGB(255, 92, 120, 204)
-                                        .withOpacity(0.7),
-                                  ],
+                                  colors: _isGenerating
+                                      ? [Colors.red, Colors.redAccent]
+                                      : [
+                                          const Color.fromARGB(
+                                              255, 63, 160, 212),
+                                          const Color.fromARGB(
+                                              255, 92, 120, 204),
+                                        ],
                                 )
                               : null,
-                          color: hasText ? null : const Color(0xFF2d2d2d),
+                          color: (hasText || _isGenerating)
+                              ? null
+                              : const Color(0xFF2d2d2d),
                           borderRadius: BorderRadius.circular(22),
                         ),
                         child: IconButton(
                           icon: Icon(
-                            hasText ? Icons.arrow_upward : Icons.graphic_eq,
+                            _isGenerating
+                                ? Icons.stop
+                                : (hasText
+                                    ? Icons.arrow_upward
+                                    : Icons.graphic_eq),
                             color: Colors.white,
                             size: 24,
                           ),
                           padding: EdgeInsets.zero,
-                          onPressed: hasText ? _sendMessage : null,
+                          onPressed: _isGenerating
+                              ? _stopGeneration
+                              : (hasText ? () => _sendMessage() : null),
                         ),
                       ),
                     ],
@@ -775,7 +770,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-// Боковое меню
   Widget _buildDrawer() {
     return Drawer(
       backgroundColor: const Color(0xFF1a1a1a),
@@ -783,7 +777,6 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Заголовок с кнопкой подписок
             Padding(
               padding: const EdgeInsets.all(24),
               child: Row(
@@ -797,7 +790,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.white,
                     ),
                   ),
-                  // КНОПКА ПОДПИСОК
                   Container(
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
@@ -809,7 +801,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: const Icon(Icons.workspace_premium,
                           color: Colors.white),
                       onPressed: () {
-                        Navigator.pop(context); // Закрываем drawer
+                        Navigator.pop(context);
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -822,18 +814,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-
-            // Новый чат
             _buildMenuItem(
               icon: Icons.add_comment_outlined,
               label: 'New chat',
               color: const Color.fromARGB(223, 68, 118, 185),
-              onTap: () {},
+              onTap: () {
+                setState(() => _messages.clear());
+                Navigator.pop(context);
+              },
             ),
-
             const SizedBox(height: 8),
-
-            // Чаты
             _buildMenuItem(
               icon: Icons.chat_bubble_outline,
               label: 'Chats',
@@ -846,26 +836,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
-
-            // Проекты
             _buildMenuItem(
               icon: Icons.folder_outlined,
               label: 'Projects',
               onTap: () {},
             ),
-
-            // Artifacts
             _buildMenuItem(
               icon: Icons.grid_view_outlined,
               label: 'Artifacts',
               onTap: () {},
             ),
-
             _buildAITrainerMenuItem(),
-
             const SizedBox(height: 24),
-
-            // Recents
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
@@ -878,10 +860,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 12),
-
-            // История чатов
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -892,8 +871,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-
-            // Профиль внизу
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -943,7 +920,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _showAITrainerDialog() async {
-    // Проверяем подписку
     final subscription = await SubscriptionService().getSubscription();
     final isPremium = subscription.tier == SubscriptionTier.premium;
 
@@ -959,10 +935,7 @@ class _HomeScreenState extends State<HomeScreen> {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF2d2d2d),
-                Color(0xFF1a1a1a),
-              ],
+              colors: [Color(0xFF2d2d2d), Color(0xFF1a1a1a)],
             ),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
@@ -973,7 +946,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Заголовок с иконкой
               Container(
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -990,11 +962,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.psychology,
-                        color: Colors.white,
-                        size: 40,
-                      ),
+                      child: const Icon(Icons.psychology,
+                          color: Colors.white, size: 40),
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -1010,15 +979,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       'Персональный помощник для обучения',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: Colors.white60,
-                      ),
+                          fontSize: 14, color: Colors.white60),
                     ),
                   ],
                 ),
               ),
-
-              // Особенности
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
@@ -1031,17 +996,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 24),
-
-              // Кнопка действия
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: isPremium
                     ? ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
+                        onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFCC785C),
                           minimumSize: const Size(double.infinity, 56),
@@ -1052,15 +1012,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Text(
                           'Начать тренировку',
                           style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
+                              fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                       )
                     : ElevatedButton(
                         onPressed: () {
                           Navigator.pop(context);
-                          // Открыть экран подписок
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -1075,9 +1032,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                             side: const BorderSide(
-                              color: Color(0xFFFFD700),
-                              width: 2,
-                            ),
+                                color: Color(0xFFFFD700), width: 2),
                           ),
                         ),
                         child: Row(
@@ -1091,14 +1046,13 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: GoogleFonts.inter(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFFFFD700),
+                                color: const Color(0xFFFFD700),
                               ),
                             ),
                           ],
                         ),
                       ),
               ),
-
               const SizedBox(height: 24),
             ],
           ),
@@ -1117,10 +1071,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: Text(
               text,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: Colors.white70,
-              ),
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.white70),
             ),
           ),
         ],
@@ -1235,10 +1186,7 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Text(
           title,
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            color: Colors.white70,
-          ),
+          style: GoogleFonts.inter(fontSize: 14, color: Colors.white70),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
