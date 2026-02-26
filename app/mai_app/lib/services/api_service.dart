@@ -3,8 +3,9 @@ import 'package:http/http.dart' as http;
 import '../models/math_problem.dart';
 
 class ApiService {
-  // Render Backend URL
-  static String baseUrl = 'https://mai-backend-e4hg.onrender.com/api';
+  // Render Backend URL https://mai-backend-e4hg.onrender.com/api
+  static String baseUrl =
+      'https://mai-backend-e4hg.onrender.com/api'.trim().toString();
 
   // Обновить URL (из настроек приложения)
   static void updateBaseUrl(String newUrl) {

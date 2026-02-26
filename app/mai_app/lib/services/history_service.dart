@@ -1,6 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import '../models/math_problem.dart'; // ← ДОБАВЬ ЭТОТ ИМПОРТ!
+import '../models/math_problem.dart';
 
 class HistoryService {
   static const String _historyKey = 'mai_history';
@@ -14,13 +14,12 @@ class HistoryService {
     history.insert(
         0,
         MathSolution(
-          // ← ИЗМЕНЕНО!
           problem: problem,
           solution: solution,
-          timestamp: DateTime.now(), steps: '',
+          timestamp: DateTime.now(),
+          steps: '',
         ));
 
-    // Ограничим до 50 последних запросов
     if (history.length > 50) {
       history.removeLast();
     }
@@ -38,36 +37,45 @@ class HistoryService {
 
   // Получить всю историю
   Future<List<MathSolution>> getHistory() async {
-    // ← ИЗМЕНЕНО!
     final prefs = await SharedPreferences.getInstance();
-    final jsonList = prefs.getStringList(_historyKey);
 
-    if (jsonList == null) return [];
+    // ← ИСПРАВЛЕНИЕ: если старые данные в формате String — удаляем и начинаем заново
+    try {
+      final jsonList = prefs.getStringList(_historyKey);
+      if (jsonList == null) return [];
 
-    return jsonList.map((jsonString) {
-      final json = jsonDecode(jsonString);
-      return MathSolution(
-        // ← ИЗМЕНЕНО!
-        problem: json['problem'],
-        solution: json['solution'],
-        timestamp: DateTime.parse(json['timestamp']), steps: '',
-      );
-    }).toList();
+      return jsonList.map((jsonString) {
+        final json = jsonDecode(jsonString);
+        return MathSolution(
+          problem: json['problem'] ?? '',
+          solution: json['solution'] ?? '',
+          timestamp:
+              DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
+          steps: '',
+        );
+      }).toList();
+    } catch (e) {
+      // Старый формат данных — очищаем хранилище
+      await prefs.remove(_historyKey);
+      return [];
+    }
   }
 
   // Удалить элемент
   Future<void> deleteItem(DateTime timestamp) async {
     final prefs = await SharedPreferences.getInstance();
-    final jsonList = prefs.getStringList(_historyKey) ?? [];
 
-    // Удаляем по timestamp
-    jsonList.removeWhere((jsonString) {
-      final data = jsonDecode(jsonString);
-      final itemTime = DateTime.parse(data['timestamp']);
-      return itemTime.isAtSameMomentAs(timestamp);
-    });
-
-    await prefs.setStringList(_historyKey, jsonList);
+    try {
+      final jsonList = prefs.getStringList(_historyKey) ?? [];
+      jsonList.removeWhere((jsonString) {
+        final data = jsonDecode(jsonString);
+        final itemTime = DateTime.parse(data['timestamp']);
+        return itemTime.isAtSameMomentAs(timestamp);
+      });
+      await prefs.setStringList(_historyKey, jsonList);
+    } catch (e) {
+      await prefs.remove(_historyKey);
+    }
   }
 
   // Очистить историю
